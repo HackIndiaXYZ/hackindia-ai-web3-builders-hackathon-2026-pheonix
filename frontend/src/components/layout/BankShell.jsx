@@ -65,22 +65,22 @@ export function BankShell({ children }) {
 
       {/* Header */}
       <header className="bg-white border-b border-[#E4E7EC] shadow-sm sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Branding */}
-            <div className="flex items-center gap-3">
-              <Link to="/bank/dashboard" className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-[#027A48] flex items-center justify-center text-white font-serif font-bold text-lg shadow-sm border border-[#054F31]">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+              <Link to="/bank/dashboard" className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg bg-[#027A48] flex items-center justify-center text-white font-serif font-bold text-base sm:text-lg shadow-sm border border-[#054F31] shrink-0">
                   SBI
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-base tracking-tight text-[#101828]">State Bank</span>
-                    <span className="rounded bg-[#ECFDF3] text-[#027A48] border border-[#A6F4C5] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">
-                      Mortgage Division
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <span className="font-bold text-sm sm:text-base tracking-tight text-[#101828] truncate">State Bank</span>
+                    <span className="rounded bg-[#ECFDF3] text-[#027A48] border border-[#A6F4C5] px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider shrink-0">
+                      Mortgage
                     </span>
                   </div>
-                  <p className="text-[10px] text-[#475467] uppercase tracking-wider font-semibold">
+                  <p className="text-[9px] sm:text-[10px] text-[#475467] uppercase tracking-wider font-semibold truncate hidden sm:block">
                     TitleLock Institutional Lien & Encumbrance Clearance Desk
                   </p>
                 </div>

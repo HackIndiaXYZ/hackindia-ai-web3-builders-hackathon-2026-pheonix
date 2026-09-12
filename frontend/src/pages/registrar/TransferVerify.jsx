@@ -130,7 +130,7 @@ export function TransferVerify() {
   return (
     <div className="space-y-6 text-left animate-fade-slide-up">
       {/* Breadcrumb */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <Link
           to={`/registrar/transfers/${transfer.request_id}`}
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0B3A67] hover:underline"
@@ -167,13 +167,13 @@ export function TransferVerify() {
             Nonce consumed in <code className="font-mono bg-[#EBFDF3] px-1 py-0.5 rounded">tl_nonces_v1</code>.
             Transfer status updated to <strong className="text-[#027A48]">COMMITTED</strong>. Immutable audit record appended.
           </p>
-          <div className="p-3 bg-white rounded-lg border border-[#A6F4C5] font-mono text-xs text-[#0B3A67]">
+          <div className="p-3 bg-white rounded-lg border border-[#A6F4C5] font-mono text-xs text-[#0B3A67] break-all">
             Audit ID: {commitSuccess.audit_event?.id} · Tx: {commitSuccess.audit_event?.tx_hash?.slice(0, 16)}...
           </div>
           <div className="pt-2">
             <button
               onClick={() => navigate("/registrar/transfers")}
-              className="rounded-lg bg-[#027A48] px-4 py-2 text-xs font-semibold text-white hover:bg-[#054F31]"
+              className="w-full sm:w-auto rounded-lg bg-[#027A48] px-4 py-2 text-xs font-semibold text-white hover:bg-[#054F31]"
             >
               Return to Transfer Queue
             </button>
@@ -182,15 +182,15 @@ export function TransferVerify() {
       )}
 
       {/* Token Input Box */}
-      <div className="rounded-xl border border-[#D0D5DD] bg-white p-6 shadow-sm space-y-4">
-        <div className="flex items-center justify-between border-b border-[#EAECF0] pb-3">
+      <div className="rounded-xl border border-[#D0D5DD] bg-white p-4 sm:p-6 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#EAECF0] pb-3 gap-2">
           <div className="flex items-center gap-2">
-            <KeyRound className="h-5 w-5 text-[#0B3A67]" />
-            <h1 className="text-base font-bold text-[#101828]">
+            <KeyRound className="h-5 w-5 text-[#0B3A67] shrink-0" />
+            <h1 className="text-sm sm:text-base font-bold text-[#101828]">
               Cryptographic Sell Token Verification Console (15-Point Checklist)
             </h1>
           </div>
-          <span className="text-[10px] font-mono uppercase bg-[#EFF8FF] text-[#0B3A67] px-2 py-1 rounded font-bold">
+          <span className="text-[10px] font-mono uppercase bg-[#EFF8FF] text-[#0B3A67] px-2 py-1 rounded font-bold shrink-0 self-start sm:self-auto">
             HMAC-SHA256 Web Crypto
           </span>
         </div>
@@ -209,11 +209,11 @@ export function TransferVerify() {
             />
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <button
               type="submit"
               disabled={isEvaluating}
-              className="rounded-lg bg-[#0B3A67] px-4 py-2 text-xs font-semibold text-white hover:bg-[#1769AA] disabled:opacity-50"
+              className="w-full sm:w-auto rounded-lg bg-[#0B3A67] px-4 py-2 text-xs font-semibold text-white hover:bg-[#1769AA] disabled:opacity-50"
             >
               {isEvaluating ? "Evaluating..." : "Re-evaluate Token"}
             </button>
@@ -300,7 +300,7 @@ export function TransferVerify() {
               <button
                 onClick={handleCommit}
                 disabled={!overallValid || isRestricted}
-                className="rounded-lg bg-[#027A48] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#054F31] shadow-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full sm:w-auto shrink-0 rounded-lg bg-[#027A48] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#054F31] shadow-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 <FileCheck2 className="h-4 w-4" />
                 <span>Commit Conveyance & Seal Title</span>

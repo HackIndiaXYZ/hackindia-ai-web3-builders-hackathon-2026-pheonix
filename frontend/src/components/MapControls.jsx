@@ -17,7 +17,7 @@ export function MapControls({
   onZoomOut,
 }) {
   return (
-    <div className="fixed bottom-6 right-6 z-30 flex flex-col items-end gap-2.5">
+    <div className="map-controls fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-30 flex flex-col items-end gap-2.5">
       {/* Primary Toggles Pill Group */}
       <div className="flex items-center gap-1.5 rounded-2xl border border-white/10 bg-navy-900/85 p-1.5 shadow-glass backdrop-blur-xl">
         {/* Satellite vs Vector Toggle */}

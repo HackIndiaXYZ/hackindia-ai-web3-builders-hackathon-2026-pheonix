@@ -31,9 +31,14 @@ export function ParcelDrawer({ rawParcel, onClose }) {
 
   return (
     <aside
-      className="parcel-drawer w-96 max-w-[calc(100vw-48px)] flex flex-col rounded-lg border border-[#D0D5DD] bg-white shadow-2xl animate-fade-slide-up text-left overflow-hidden select-none"
+      className="parcel-drawer w-full sm:w-[440px] max-w-full sm:max-w-lg flex flex-col rounded-t-2xl sm:rounded-lg border border-[#D0D5DD] bg-white shadow-2xl animate-fade-slide-up text-left overflow-hidden select-none"
       aria-label="Cadastral Record Details"
     >
+      {/* Mobile Bottom Sheet Pull Bar */}
+      <div className="sm:hidden flex justify-center py-2 bg-[#F8FAFC]">
+        <div className="h-1.5 w-12 rounded-full bg-[#D0D5DD]" />
+      </div>
+
       {/* 3px National Tricolour Accent Line */}
       <div className="flex h-[3px] w-full shrink-0">
         <div className="w-1/3 bg-[#FF9933]" />

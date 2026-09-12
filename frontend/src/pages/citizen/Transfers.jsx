@@ -40,12 +40,12 @@ export function Transfers() {
         </div>
 
         {/* Filter Pills */}
-        <div className="flex rounded-lg bg-[#F2F4F7] p-1 border border-[#D0D5DD] text-xs">
+        <div className="flex flex-wrap gap-1 rounded-lg bg-[#F2F4F7] p-1 border border-[#D0D5DD] text-xs">
           {["ALL", "ACTIVE", "COMPLETED", "REJECTED"].map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-md font-semibold transition-colors ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-md font-semibold transition-colors flex-1 sm:flex-initial text-center ${
                 filter === f ? "bg-[#0B3A67] text-white shadow-sm" : "text-[#475467] hover:text-[#101828]"
               }`}
             >
@@ -60,10 +60,10 @@ export function Transfers() {
         {filteredTransfers.map((tr) => (
           <div
             key={tr.request_id}
-            className="rounded-xl border border-[#D0D5DD] bg-white p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+            className="rounded-xl border border-[#D0D5DD] bg-white p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4"
           >
             <div>
-              <div className="flex items-center gap-2.5">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="font-mono text-sm font-bold text-[#0B3A67]">
                   {tr.request_id}
                 </span>
@@ -81,7 +81,7 @@ export function Transfers() {
                 </span>
               </div>
 
-              <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-[#475467]">
+              <div className="mt-2 flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-[#475467]">
                 <span>Buyer: <strong className="text-[#101828]">{tr.buyer_user_id}</strong></span>
                 <span>·</span>
                 <span>Price: <strong className="font-mono text-[#0B3A67]">{formatCurrencyINR(tr.agreed_price_inr)}</strong></span>
@@ -90,10 +90,10 @@ export function Transfers() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
               <Link
                 to={`/citizen/transfers/${tr.request_id}`}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-[#0B3A67] px-4 py-2 text-xs font-semibold text-white hover:bg-[#1769AA] shadow-sm"
+                className="w-full sm:w-auto justify-center inline-flex items-center gap-1.5 rounded-lg bg-[#0B3A67] px-4 py-2 text-xs font-semibold text-white hover:bg-[#1769AA] shadow-sm"
               >
                 <span>View Petition</span>
                 <ArrowRight className="h-3.5 w-3.5" />

@@ -160,7 +160,7 @@ export function TransferDetail() {
             </p>
           </div>
 
-          <div className="text-right">
+          <div className="text-left sm:text-right">
             <span className="text-[10px] text-[#667085] uppercase tracking-wider block">Agreed Value</span>
             <span className="font-mono text-xl font-bold text-[#0B3A67]">
               {formatCurrencyINR(currentTransfer.agreed_price_inr)}
@@ -238,21 +238,21 @@ export function TransferDetail() {
 
       {/* Interactive Actions for pending transfer */}
       {currentTransfer.status === "PENDING_OWNER_CONSENT" && (
-        <div className="p-4 bg-white rounded-xl border border-[#D0D5DD] flex items-center justify-between shadow-sm">
+        <div className="p-4 bg-white rounded-xl border border-[#D0D5DD] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-sm">
           <div className="text-xs">
             <span className="font-bold text-[#101828]">Titleholder Consent Required</span>
             <p className="text-[#667085]">Sign cryptographic consent to forward petition to the Sub-Registrar desk.</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             <button
               onClick={handleReject}
-              className="px-3.5 py-2 rounded-lg border border-[#FECACA] bg-white text-xs font-semibold text-[#B42318] hover:bg-[#FEF2F2]"
+              className="w-full sm:w-auto px-3.5 py-2 rounded-lg border border-[#FECACA] bg-white text-xs font-semibold text-[#B42318] hover:bg-[#FEF2F2]"
             >
               Withhold Consent
             </button>
             <button
               onClick={handleConsent}
-              className="px-4 py-2 rounded-lg bg-[#0B3A67] text-xs font-semibold text-white hover:bg-[#1769AA] shadow-sm flex items-center gap-1.5"
+              className="w-full sm:w-auto px-4 py-2 rounded-lg bg-[#0B3A67] text-xs font-semibold text-white hover:bg-[#1769AA] shadow-sm flex items-center justify-center gap-1.5"
             >
               <CheckCircle2 className="h-4 w-4" />
               <span>Grant Consent</span>

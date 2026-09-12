@@ -129,7 +129,7 @@ export function TransferDesk() {
         </div>
 
         {/* Quick Petition Switcher */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <span className="text-xs text-[#667085] font-semibold">Switch Petition:</span>
           <select
             value={activeTransfer.request_id}
@@ -137,7 +137,7 @@ export function TransferDesk() {
               setSelectedRequestId(e.target.value);
               navigate(`/registrar/transfers/${e.target.value}`);
             }}
-            className="rounded-lg border border-[#D0D5DD] bg-white px-3 py-1.5 font-mono text-xs text-[#101828] font-bold"
+            className="w-full sm:w-auto rounded-lg border border-[#D0D5DD] bg-white px-3 py-1.5 font-mono text-xs text-[#101828] font-bold"
           >
             {transfers.map((t) => (
               <option key={t.request_id} value={t.request_id}>
@@ -234,7 +234,7 @@ export function TransferDesk() {
       )}
 
       {/* 6 Hero Adjudication Panels Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Panel 1: Petition & Cadastral Overview */}
         <div className="rounded-xl border border-[#D0D5DD] bg-white p-5 shadow-sm space-y-3">
           <div className="flex items-center justify-between border-b border-[#EAECF0] pb-2">
@@ -393,11 +393,11 @@ export function TransferDesk() {
             Officer Badge: <span className="font-mono font-bold text-[#101828]">{user?.badge || "GOV-REG-0182"}</span>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 sm:gap-3 w-full sm:w-auto">
             <button
               onClick={handleReject}
               disabled={isFrozen}
-              className="rounded-lg border border-[#FECACA] bg-white px-4 py-2 text-xs font-semibold text-[#B42318] hover:bg-[#FEF2F2] disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full sm:w-auto rounded-lg border border-[#FECACA] bg-white px-4 py-2 text-xs font-semibold text-[#B42318] hover:bg-[#FEF2F2] disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Reject Petition
             </button>
@@ -405,7 +405,7 @@ export function TransferDesk() {
             <button
               onClick={handleApprove}
               disabled={isFrozen || isRestricted || (isHighRisk && !overrideReason.trim())}
-              className="rounded-lg bg-[#027A48] px-5 py-2 text-xs font-bold text-white hover:bg-[#054F31] shadow-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+              className="w-full sm:w-auto rounded-lg bg-[#027A48] px-5 py-2 text-xs font-bold text-white hover:bg-[#054F31] shadow-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
             >
               <CheckCircle2 className="h-4 w-4" />
               <span>Approve & Seal Title</span>

@@ -39,12 +39,12 @@ export function Queue() {
         </div>
 
         {/* Filter Pills */}
-        <div className="flex rounded-lg bg-[#F2F4F7] p-1 border border-[#D0D5DD] text-xs">
+        <div className="flex flex-wrap gap-1 rounded-lg bg-[#F2F4F7] p-1 border border-[#D0D5DD] text-xs">
           {["ALL", "PENDING", "HIGH_RISK", "COMMITTED", "REJECTED"].map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-md font-semibold transition-colors ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-md font-semibold transition-colors flex-1 sm:flex-initial text-center whitespace-nowrap ${
                 filter === f ? "bg-[#0B3A67] text-white shadow-sm" : "text-[#475467] hover:text-[#101828]"
               }`}
             >

@@ -145,7 +145,7 @@ export function SellKeys() {
         <div className="lg:col-span-2">
           {selectedToken ? (
             <div className="rounded-xl border border-[#D0D5DD] bg-white p-6 shadow-sm space-y-4">
-              <div className="flex items-center justify-between border-b border-[#EAECF0] pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#EAECF0] pb-4 gap-3">
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-base font-bold text-[#0B3A67]">
@@ -169,7 +169,7 @@ export function SellKeys() {
                 {!selectedToken.revoked && (
                   <button
                     onClick={() => handleRevoke(selectedToken.key_id)}
-                    className="px-3 py-1.5 rounded-md border border-[#FECACA] bg-white text-xs font-semibold text-[#B42318] hover:bg-[#FEF2F2]"
+                    className="self-start sm:self-auto px-3 py-1.5 rounded-md border border-[#FECACA] bg-white text-xs font-semibold text-[#B42318] hover:bg-[#FEF2F2]"
                   >
                     Revoke Token
                   </button>
@@ -196,7 +196,7 @@ export function SellKeys() {
               </div>
 
               {/* Claims Breakdown */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs bg-[#F7F9FC] p-4 rounded-lg border border-[#EAECF0]">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs bg-[#F7F9FC] p-4 rounded-lg border border-[#EAECF0]">
                 <div>
                   <span className="text-[#667085] block">ULPIN:</span>
                   <span className="font-mono font-bold text-[#101828]">{selectedToken.ulpin}</span>

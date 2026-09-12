@@ -97,12 +97,12 @@ export function SuccessionDesk() {
       )}
 
       {/* Case Selector Tabs */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {cases.map((c) => (
           <Link
             key={c.case_id}
             to={`/registrar/succession/${c.case_id}`}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${
+            className={`px-3 sm:px-4 py-2 rounded-lg text-xs font-bold transition-colors ${
               activeCaseId === c.case_id
                 ? "bg-[#0B3A67] text-white shadow-sm"
                 : "bg-white border border-[#D0D5DD] text-[#344054] hover:bg-[#F8FAFC]"
@@ -114,10 +114,10 @@ export function SuccessionDesk() {
       </div>
 
       {/* Adjudication Hero Card */}
-      <div className="rounded-xl border border-[#D0D5DD] bg-white p-6 shadow-sm space-y-6">
+      <div className="rounded-xl border border-[#D0D5DD] bg-white p-4 sm:p-6 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#EAECF0] pb-4">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-xl font-bold text-[#0B3A67]">
                 {activeCase.case_id}
               </span>
@@ -136,7 +136,7 @@ export function SuccessionDesk() {
             </p>
           </div>
 
-          <div className="text-right text-xs">
+          <div className="text-left sm:text-right text-xs">
             <span className="text-[#667085] block">Deceased Titleholder:</span>
             <span className="font-bold text-[#101828]">{activeCase.deceased_name} ({activeCase.deceased_user_id})</span>
           </div>

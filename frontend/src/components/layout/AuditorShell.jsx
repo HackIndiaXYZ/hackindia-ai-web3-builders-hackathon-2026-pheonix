@@ -64,14 +64,14 @@ export function AuditorShell({ children }) {
       <div className="h-1 w-full bg-gradient-to-r from-[#0E7090] via-[#0284C7] to-[#047857]" />
 
       {/* Demo Sandbox Banner */}
-      <div className="bg-[#ECFEFF] border-b border-[#BAE6FD] px-4 py-1.5 text-center text-xs font-mono text-[#0369A1] flex items-center justify-center gap-2">
+      <div className="bg-[#ECFEFF] border-b border-[#BAE6FD] px-3 sm:px-4 py-1.5 text-center text-xs font-mono text-[#0369A1] flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
         <Shield className="h-3.5 w-3.5 shrink-0 text-[#0284C7]" />
-        <span>
-          <strong>STATE AUDIT DIRECTORATE ENVIRONMENT:</strong> Read-only immutable ledger oversight. Verification hashes evaluated on synthetic records.
+        <span className="leading-tight">
+          <strong>STATE AUDIT DIRECTORATE:</strong> Read-only immutable ledger oversight.
         </span>
         <button
           onClick={handleReset}
-          className="ml-3 inline-flex items-center gap-1 underline text-[11px] font-semibold hover:text-[#0C4A6E]"
+          className="inline-flex items-center gap-1 underline text-[11px] font-semibold hover:text-[#0C4A6E] shrink-0"
         >
           <RotateCcw className="h-3 w-3" /> Reset Demo State
         </button>
@@ -79,22 +79,22 @@ export function AuditorShell({ children }) {
 
       {/* Header */}
       <header className="bg-white border-b border-[#E4E7EC] shadow-sm sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Directorate Branding */}
-            <div className="flex items-center gap-3">
-              <Link to="/auditor/dashboard" className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-[#0E7090] flex items-center justify-center text-white font-serif font-bold text-lg shadow-sm border border-[#155E75]">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+              <Link to="/auditor/dashboard" className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg bg-[#0E7090] flex items-center justify-center text-white font-serif font-bold text-base sm:text-lg shadow-sm border border-[#155E75] shrink-0">
                   AD
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-base tracking-tight text-[#0F172A]">State Land Audit</span>
-                    <span className="rounded bg-[#ECFEFF] text-[#0E7090] border border-[#BAE6FD] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <span className="font-bold text-sm sm:text-base tracking-tight text-[#0F172A] truncate">State Land Audit</span>
+                    <span className="rounded bg-[#ECFEFF] text-[#0E7090] border border-[#BAE6FD] px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider shrink-0">
                       Directorate
                     </span>
                   </div>
-                  <p className="text-[10px] text-[#475467] uppercase tracking-wider font-semibold">
+                  <p className="text-[9px] sm:text-[10px] text-[#475467] uppercase tracking-wider font-semibold truncate hidden sm:block">
                     Comptroller & Cadastral Oversight • Independent Audit Authority
                   </p>
                 </div>

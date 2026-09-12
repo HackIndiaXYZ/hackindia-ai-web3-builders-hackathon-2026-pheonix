@@ -96,12 +96,12 @@ export function CitizenDashboard() {
       </div>
 
       {/* Role Switcher Tabs (OWNER / BUYER / NOMINEE) */}
-      <div className="flex items-center justify-between border-b border-[#EAECF0] pb-2">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between border-b border-[#EAECF0] pb-2 gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-bold uppercase tracking-wider text-[#667085]">
             Active Role View:
           </span>
-          <div className="flex rounded-lg bg-[#F2F4F7] p-1 border border-[#D0D5DD]">
+          <div className="flex flex-wrap rounded-lg bg-[#F2F4F7] p-1 border border-[#D0D5DD]">
             {["OWNER", "BUYER", "NOMINEE"].map((r) => {
               const hasRole = userRoles.includes(r);
               const isActive = selectedRoleTab === r;
@@ -132,7 +132,7 @@ export function CitizenDashboard() {
 
       {/* Role KPIs (Verbatim from fixture) */}
       <div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {selectedRoleTab === "OWNER" && (
             <>
               <KpiCard

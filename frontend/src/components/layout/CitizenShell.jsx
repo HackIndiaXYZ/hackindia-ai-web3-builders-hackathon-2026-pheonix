@@ -58,14 +58,14 @@ export function CitizenShell({ children }) {
       <div className="h-1 w-full bg-gradient-to-r from-[#FF9933] via-white to-[#138808]" />
 
       {/* Demo Sandbox Banner */}
-      <div className="bg-[#FFF4E5] border-b border-[#FFE2B3] px-4 py-1.5 text-center text-xs font-mono text-[#B54708] flex items-center justify-center gap-2">
+      <div className="bg-[#FFF4E5] border-b border-[#FFE2B3] px-3 sm:px-4 py-1.5 text-center text-xs font-mono text-[#B54708] flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
         <Info className="h-3.5 w-3.5 shrink-0 text-[#D92D20]" />
-        <span>
-          <strong>SYNTHETIC DEMO ENVIRONMENT:</strong> Department of Land Resources (TitleLock). All records, ULPINs, and signatures are mock representations.
+        <span className="leading-tight">
+          <strong>SYNTHETIC DEMO ENVIRONMENT:</strong> Department of Land Resources (TitleLock).
         </span>
         <button
           onClick={handleReset}
-          className="ml-3 inline-flex items-center gap-1 underline text-[11px] font-semibold hover:text-[#7A271A]"
+          className="inline-flex items-center gap-1 underline text-[11px] font-semibold hover:text-[#7A271A] shrink-0"
         >
           <RotateCcw className="h-3 w-3" /> Reset Demo State
         </button>
@@ -73,32 +73,32 @@ export function CitizenShell({ children }) {
 
       {/* Deceased Account Alert Banner (SCN-04) */}
       {isDeceased && (
-        <div className="bg-[#FEF3F2] border-b border-[#FECDCA] px-4 py-2.5 text-center text-xs text-[#B42318] flex items-center justify-center gap-2">
+        <div className="bg-[#FEF3F2] border-b border-[#FECDCA] px-3 sm:px-4 py-2 text-center text-xs text-[#B42318] flex flex-wrap items-center justify-center gap-1.5 sm:gap-2">
           <AlertTriangle className="h-4 w-4 shrink-0 text-[#D92D20]" />
-          <span>
-            <strong>STATUS NOTICE — DECEASED RECORD:</strong> User Mohan Nair (USR-DEAD-001) is registered as deceased. Active transfer issuance is locked. Succession proceeding <Link to="/citizen/succession" className="font-bold underline ml-1">Case SUC-2026-001</Link> is active.
+          <span className="leading-snug">
+            <strong>STATUS NOTICE — DECEASED RECORD:</strong> Mohan Nair (USR-DEAD-001) is registered as deceased. Active transfer issuance locked. <Link to="/citizen/succession" className="font-bold underline ml-1">Case SUC-2026-001</Link> active.
           </span>
         </div>
       )}
 
       {/* Official Government Top Header */}
       <header className="bg-white border-b border-[#E4E7EC] shadow-sm sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* National Emblem / Portal Brand */}
-            <div className="flex items-center gap-3">
-              <Link to="/citizen/dashboard" className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-[#0B3A67] flex items-center justify-center text-white font-serif font-bold text-lg shadow-sm border border-[#082949]">
+            <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+              <Link to="/citizen/dashboard" className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg bg-[#0B3A67] flex items-center justify-center text-white font-serif font-bold text-base sm:text-lg shadow-sm border border-[#082949] shrink-0">
                   TL
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-base tracking-tight text-[#0B3A67]">TitleLock</span>
-                    <span className="rounded bg-[#EBF3FC] text-[#0B3A67] px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <span className="font-bold text-sm sm:text-base tracking-tight text-[#0B3A67] truncate">TitleLock</span>
+                    <span className="rounded bg-[#EBF3FC] text-[#0B3A67] px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider shrink-0">
                       Citizen Portal
                     </span>
                   </div>
-                  <p className="text-[10px] text-[#475467] uppercase tracking-wider font-semibold">
+                  <p className="text-[9px] sm:text-[10px] text-[#475467] uppercase tracking-wider font-semibold truncate hidden sm:block">
                     Government of India • Land Records & Titles
                   </p>
                 </div>

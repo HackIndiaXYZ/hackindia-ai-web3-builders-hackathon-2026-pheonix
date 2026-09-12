@@ -99,12 +99,12 @@ export function Succession() {
       )}
 
       {/* Case Selector Tabs */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {successionCases.map((c) => (
           <button
             key={c.case_id}
             onClick={() => setActiveCaseId(c.case_id)}
-            className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${
+            className={`px-3 sm:px-4 py-2 rounded-lg text-xs font-bold transition-colors ${
               activeCaseId === c.case_id
                 ? "bg-[#0B3A67] text-white shadow-sm"
                 : "bg-white border border-[#D0D5DD] text-[#344054] hover:bg-[#F8FAFC]"
@@ -116,10 +116,10 @@ export function Succession() {
       </div>
 
       {/* Active Case Hero Card */}
-      <div className="rounded-xl border border-[#D0D5DD] bg-white p-6 shadow-sm space-y-6">
+      <div className="rounded-xl border border-[#D0D5DD] bg-white p-4 sm:p-6 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#EAECF0] pb-5">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h2 className="font-mono text-xl font-bold text-[#0B3A67]">
                 {activeCase.case_id}
               </h2>
@@ -138,7 +138,7 @@ export function Succession() {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 text-xs bg-[#F8FAFC] p-3 rounded-lg border border-[#EAECF0]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-xs bg-[#F8FAFC] p-3 rounded-lg border border-[#EAECF0]">
             <div>
               <span className="text-[#667085] block">Deceased Owner:</span>
               <span className="font-bold text-[#101828]">{activeCase.deceased_name}</span>
