@@ -1,0 +1,75 @@
+[
+  {
+    "request_id": "REQ-01",
+    "ulpin": "UP-0001-CLEAN",
+    "seller": "Rajesh Kumar",
+    "buyer": "Sunita Kumar",
+    "claimed_area_sqm": 1200,
+    "transaction_date": "2026-09-08",
+    "note": "Should auto-approve — clean transfer"
+  },
+  {
+    "request_id": "REQ-02",
+    "ulpin": "UP-0003-DUPLICATE-TARGET",
+    "seller": "Vikram Sharma",
+    "buyer": "Rakesh Gupta",
+    "claimed_area_sqm": 2000,
+    "transaction_date": "2026-09-08",
+    "note": "Duplicate sale — Vikram already sold this in 2023, Anil is current owner"
+  },
+  {
+    "request_id": "REQ-03",
+    "ulpin": "UP-0004-BACKDATE-TARGET",
+    "seller": "Priya Singh",
+    "buyer": "Manoj Tiwari",
+    "claimed_area_sqm": 1500,
+    "transaction_date": "2023-01-01",
+    "note": "Backdated — claims a date before Priya even acquired the property"
+  },
+  {
+    "request_id": "REQ-04",
+    "ulpin": "UP-0005-CLEAN",
+    "seller": "Fatima Khan",
+    "buyer": "Arjun Rao",
+    "claimed_area_sqm": 3600,
+    "transaction_date": "2026-09-08",
+    "note": "Area mismatch — claims 3600 sqm vs registered 3000 sqm (20% deviation). Graded as a major discrepancy (0.35) → FLAGGED for manual review"
+  },
+  {
+    "request_id": "REQ-05",
+    "ulpin": "UP-0006-VELOCITY-TARGET",
+    "seller": "Deepak Verma",
+    "buyer": "Kavita Joshi",
+    "claimed_area_sqm": 900,
+    "transaction_date": "2026-09-08",
+    "note": "Velocity — this would be the 3rd transfer of this parcel in 60 days (0.35) → FLAGGED for manual review"
+  },
+  {
+    "request_id": "REQ-07",
+    "ulpin": "UP-0007-FLAGGED-TARGET",
+    "seller": "Harpreet Singh",
+    "buyer": "Naveen Chawla",
+    "claimed_area_sqm": 1080,
+    "transaction_date": "2026-09-08",
+    "note": "Middle-tier FLAGGED demo — an 8% area mismatch (0.2) stacks with transfer velocity (0.35) for a composite of 0.55: neither is a hard flag, but together they cross the 0.25 manual-review threshold while staying under the 0.60 high-risk line"
+  },
+  {
+    "request_id": "REQ-08",
+    "ulpin": "UP-0001-CLEAN",
+    "seller": "Rajesh Kumar",
+    "buyer": "Deepak Nair",
+    "claimed_area_sqm": 1200,
+    "transaction_date": "2026-09-08",
+    "claimed_boundary": [[0, 0], [50, 0], [50, 30], [0, 30]],
+    "note": "Boundary creep — redrawn survey quietly extends 10m into neighboring UP-0002-CLEAN"
+  },
+  {
+    "request_id": "REQ-06",
+    "ulpin": "UP-0002-CLEAN",
+    "seller": "Meena Devi",
+    "buyer": "Ritu Bansal",
+    "claimed_area_sqm": 850,
+    "transaction_date": "2026-09-08",
+    "note": "Should auto-approve — clean transfer"
+  }
+]

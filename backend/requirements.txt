@@ -1,0 +1,16 @@
+flask==3.1.3
+pytesseract==0.3.13
+pillow==12.1.1
+
+# Optional — grounded AI narration of risk reports (see risk_report.py).
+# Without this (or without ANTHROPIC_API_KEY set), reports fall back to the
+# deterministic template and everything still works offline.
+anthropic==0.40.0
+
+# Only needed if you switch CHAIN_MODE=live (see LIVE_CHAIN_SETUP.md).
+# Mock mode (the default) needs none of this.
+web3==7.6.0
+eth-account==0.13.4
+
+# Test suite: pytest
+pytest==8.3.4

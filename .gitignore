@@ -1,0 +1,31 @@
+# Secrets — LIVE_CHAIN_SETUP.md has you put a wallet private key in
+# contracts/.env. Never commit these.
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+venv/
+.venv/
+
+# Hardhat build output
+contracts/artifacts/
+contracts/cache/
+contracts/typechain-types/
+
+# The compiled frontend bundle IS committed on purpose, so the app can be
+# opened without a build step. Remove the "!" line below if you would rather
+# require `npm run build` on every checkout.
+!frontend/dist/bundle.js
+
+# Editor / OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

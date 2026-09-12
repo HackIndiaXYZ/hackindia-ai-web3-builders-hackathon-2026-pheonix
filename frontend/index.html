@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Parcel Register — Land Title Verification Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!--
+  Tailwind via the official Play CDN — zero build step for CSS, matching
+  this project's zero-build-step philosophy for JS (esbuild bundles the
+  actual app code; Tailwind's JIT compiler runs client-side against the
+  rendered class names). This needs real internet access in the browser
+  that loads this page — it could not be verified inside the sandboxed
+  environment this project was built in (see README), but it's the same
+  officially-documented pattern Tailwind ships for exactly this use case.
+
+  If you'd rather have a proper compiled Tailwind build (smaller payload,
+  no client-side JIT cost), swap this for the Tailwind CLI — the utility
+  classes used throughout src/ don't change either way.
+-->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          base: { 950: "#0a0b0d", 900: "#111318", 800: "#1a1d24", 700: "#252932" },
+          accent: { DEFAULT: "#FF6A00", dim: "#FF6A0026", hover: "#FF7F1F" },
+          risk: { approved: "#3DDC97", flagged: "#FFB020", high: "#FF4D4D" },
+        },
+        fontFamily: {
+          sans: ["Inter", "system-ui", "sans-serif"],
+          mono: ["IBM Plex Mono", "monospace"],
+        },
+        boxShadow: {
+          glow: "0 0 0 1px #FF6A0033, 0 0 24px 0 #FF6A0022",
+          "glow-sm": "0 0 0 1px #FF6A0033, 0 0 12px 0 #FF6A0022",
+        },
+        keyframes: {
+          pulseGlow: { "0%,100%": { opacity: 1 }, "50%": { opacity: 0.4 } },
+        },
+        animation: { "pulse-glow": "pulseGlow 2s ease-in-out infinite" },
+      },
+    },
+  };
+</script>
+
+<style>
+  body { background: #0a0b0d; font-family: 'Inter', system-ui, sans-serif; }
+</style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script src="dist/bundle.js"></script>
+
+</body>
+</html>

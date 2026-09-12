@@ -1,0 +1,18 @@
+{
+  "name": "land-registry-frontend",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "build": "esbuild src/main.jsx --bundle --minify --outfile=dist/bundle.js --jsx=automatic --loader:.jsx=jsx --define:process.env.NODE_ENV=\\\"production\\\"",
+    "watch": "esbuild src/main.jsx --bundle --outfile=dist/bundle.js --jsx=automatic --loader:.jsx=jsx --define:process.env.NODE_ENV=\\\"development\\\" --watch"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-icons": "^5.0.1",
+    "framer-motion": "^11.0.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.0"
+  }
+}

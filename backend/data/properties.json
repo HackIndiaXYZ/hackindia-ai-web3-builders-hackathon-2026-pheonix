@@ -1,0 +1,87 @@
+[
+  {
+    "ulpin": "UP-0001-CLEAN",
+    "survey_number": "SN-245-A",
+    "current_owner": "Rajesh Kumar",
+    "area_sqm": 1200,
+    "registration_office": "Sub-Registrar Noida-II",
+    "last_registered_date": "2022-03-15",
+    "boundary": [[0, 0], [40, 0], [40, 30], [0, 30]],
+    "transfer_history": [
+      {"from": "Government Grant", "to": "Suresh Kumar", "date": "2010-06-01", "doc_hash": "0xaaa1"},
+      {"from": "Suresh Kumar", "to": "Rajesh Kumar", "date": "2022-03-15", "doc_hash": "0xaaa2"}
+    ]
+  },
+  {
+    "ulpin": "UP-0002-CLEAN",
+    "survey_number": "SN-118-C",
+    "current_owner": "Meena Devi",
+    "area_sqm": 850,
+    "registration_office": "Sub-Registrar Noida-II",
+    "last_registered_date": "2021-11-02",
+    "boundary": [[41, 0], [66, 0], [66, 34], [41, 34]],
+    "transfer_history": [
+      {"from": "Government Grant", "to": "Meena Devi", "date": "2021-11-02", "doc_hash": "0xbbb1"}
+    ]
+  },
+  {
+    "ulpin": "UP-0003-DUPLICATE-TARGET",
+    "survey_number": "SN-330-B",
+    "current_owner": "Anil Sharma",
+    "area_sqm": 2000,
+    "registration_office": "Sub-Registrar Greater Noida",
+    "last_registered_date": "2023-01-20",
+    "transfer_history": [
+      {"from": "Government Grant", "to": "Vikram Sharma", "date": "2005-04-10", "doc_hash": "0xccc1"},
+      {"from": "Vikram Sharma", "to": "Anil Sharma", "date": "2023-01-20", "doc_hash": "0xccc2"}
+    ]
+  },
+  {
+    "ulpin": "UP-0004-BACKDATE-TARGET",
+    "survey_number": "SN-410-D",
+    "current_owner": "Priya Singh",
+    "area_sqm": 1500,
+    "registration_office": "Sub-Registrar Greater Noida",
+    "last_registered_date": "2023-08-10",
+    "transfer_history": [
+      {"from": "Government Grant", "to": "Priya Singh", "date": "2023-08-10", "doc_hash": "0xddd1"}
+    ]
+  },
+  {
+    "ulpin": "UP-0005-CLEAN",
+    "survey_number": "SN-500-A",
+    "current_owner": "Fatima Khan",
+    "area_sqm": 3000,
+    "registration_office": "Sub-Registrar Noida-I",
+    "last_registered_date": "2020-02-14",
+    "transfer_history": [
+      {"from": "Government Grant", "to": "Fatima Khan", "date": "2020-02-14", "doc_hash": "0xeee1"}
+    ]
+  },
+  {
+    "ulpin": "UP-0007-FLAGGED-TARGET",
+    "survey_number": "SN-712-F",
+    "current_owner": "Harpreet Singh",
+    "area_sqm": 1000,
+    "registration_office": "Sub-Registrar Noida-I",
+    "last_registered_date": "2026-08-01",
+    "transfer_history": [
+      {"from": "Government Grant", "to": "Older Owner", "date": "2015-01-01", "doc_hash": "0xggg1"},
+      {"from": "Older Owner", "to": "Gurpreet Singh", "date": "2026-07-15", "doc_hash": "0xggg2"},
+      {"from": "Gurpreet Singh", "to": "Harpreet Singh", "date": "2026-08-01", "doc_hash": "0xggg3"}
+    ]
+  },
+  {
+    "ulpin": "UP-0006-VELOCITY-TARGET",
+    "survey_number": "SN-610-E",
+    "current_owner": "Deepak Verma",
+    "area_sqm": 900,
+    "registration_office": "Sub-Registrar Noida-I",
+    "last_registered_date": "2026-08-20",
+    "transfer_history": [
+      {"from": "Government Grant", "to": "Ramesh Verma", "date": "2015-05-05", "doc_hash": "0xfff1"},
+      {"from": "Ramesh Verma", "to": "Suman Verma", "date": "2026-08-05", "doc_hash": "0xfff2"},
+      {"from": "Suman Verma", "to": "Deepak Verma", "date": "2026-08-20", "doc_hash": "0xfff3"}
+    ]
+  }
+]
