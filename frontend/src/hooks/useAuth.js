@@ -56,8 +56,8 @@ export function useAuth() {
     return () => setUnauthorizedHandler(null);
   }, [clearSession]);
 
-  const login = useCallback(async (username, role) => {
-    const data = await apiPost("/auth/login", { username, role });
+  const login = useCallback(async (username) => {
+    const data = await apiPost("/auth/login", { username });
     setToken(data.token);
     setUser({ username: data.username, role: data.role });
     localStorage.setItem("lr_token", data.token);

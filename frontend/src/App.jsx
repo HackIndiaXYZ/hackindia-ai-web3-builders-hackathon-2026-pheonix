@@ -14,6 +14,9 @@ import { RegisterParcel } from "./pages/RegisterParcel.jsx";
 import { TransferPage } from "./pages/Transfer.jsx";
 import { BlockchainExplorer } from "./pages/BlockchainExplorer.jsx";
 import { LoginPage } from "./pages/Login.jsx";
+import { WorkflowPage } from "./pages/Workflow.jsx";
+import { OperationsPage } from "./pages/Operations.jsx";
+import { ParcelMap } from "./pages/ParcelMap.jsx";
 
 // Simple, consistent page-transition variants — a fade + slight rise reads
 // as "premium" without being distracting on every navigation.
@@ -29,6 +32,9 @@ function resolvePage(path, rest, auth, config) {
   if (path === "/registry") return <Registry />;
   if (path === "/register") return <RegisterParcel auth={auth} />;
   if (path === "/transfer") return <TransferPage auth={auth} />;
+  if (path === "/workflow") return <WorkflowPage auth={auth} />;
+  if (path === "/map") return <ParcelMap />;
+  if (path === "/operations") return <OperationsPage auth={auth} />;
   if (path === "/chain") return <BlockchainExplorer />;
   return <Dashboard auth={auth} config={config} />;
 }

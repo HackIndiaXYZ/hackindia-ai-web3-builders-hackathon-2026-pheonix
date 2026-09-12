@@ -23,6 +23,26 @@ os.environ["CHAIN_MODE"] = "mock"
 # rest of the suite must run deterministically and offline.
 os.environ.pop("ANTHROPIC_API_KEY", None)
 
+# The default suite is the in-memory path, and it must stay that way even in a
+# shell that exports a database. `config` snapshots the environment at import
+# time, so this has to happen before `import app` — which is why it is here at
+# module scope rather than in a fixture.
+#
+# Postgres-backed tests therefore do NOT read DATABASE_URL: they take
+# TEST_DATABASE_URL and pass it to the repository explicitly, which sidesteps
+# the import-order problem entirely.
+os.environ.pop("DATABASE_URL", None)
+os.environ.pop("REDIS_URL", None)
+
+TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "")
+
+
+def pytest_configure(cfg):
+    cfg.addinivalue_line(
+        "markers",
+        "postgres: requires a live PostgreSQL+PostGIS database (set TEST_DATABASE_URL)",
+    )
+
 
 @pytest.fixture
 def app_module():
@@ -37,12 +57,20 @@ def app_module():
     import app as app_mod
     import assessment_store
     import auth
+    import cache
     import mock_chain
 
     app_mod.PROPERTIES = app_mod.load_properties()
+    app_mod.v2 = app_mod.V2Registry()
     assessment_store.reset()
     mock_chain.reset()
     auth._SESSIONS.clear()
+    # The rate-limit counters are keyed by (client address, minute) and are
+    # process-global. Without this reset the whole suite shares one bucket, so
+    # a suite that grows past RATE_LIMIT_PER_MINUTE requests inside a single
+    # minute would start failing on 429s that have nothing to do with the
+    # behaviour under test.
+    cache.reset_local()
 
     return app_mod
 
@@ -70,3 +98,48 @@ def bank_token(client):
 
 def auth_header(token):
     return {"Authorization": f"Bearer {token}"}
+
+
+# ------------------------------------------------------ postgres fixtures ----
+
+@pytest.fixture(scope="session")
+def postgres_url():
+    """The test database URL, or skip. Never falls back to DATABASE_URL.
+
+    Reading a developer's real DATABASE_URL here would let a test run truncate
+    a database they cared about. Opting in through TEST_DATABASE_URL makes that
+    impossible by accident.
+    """
+    if not TEST_DATABASE_URL:
+        pytest.skip("TEST_DATABASE_URL is not set; skipping PostgreSQL-backed tests")
+    return TEST_DATABASE_URL
+
+
+@pytest.fixture
+def postgres_repo(postgres_url):
+    """A repository against a schema-migrated, emptied test database."""
+    import migrate
+    import psycopg
+    import seed_demo_data
+    from postgres_repository import PostgresV2Repository
+
+    migrate.run(database_url=postgres_url)
+
+    with psycopg.connect(postgres_url) as conn:
+        with conn.cursor() as cur:
+            # Order does not matter with CASCADE, and RESTART IDENTITY keeps
+            # generated values from drifting between runs. This is why the URL
+            # must be opt-in: it destroys data.
+            cur.execute("""
+                TRUNCATE transfer_approvals, transfer_sellers, signing_challenges,
+                         blockchain_outbox, blockchain_events, audit_events,
+                         notifications, credential_recovery_cases, succession_cases,
+                         nominees, ownerships, credentials, wallets, nonces,
+                         documents, encumbrances, disputes, transfers,
+                         parcel_geometries, parcels, sessions, user_roles, users
+                RESTART IDENTITY CASCADE
+            """)
+        conn.commit()
+
+    seed_demo_data.run(database_url=postgres_url)
+    return PostgresV2Repository(database_url=postgres_url)

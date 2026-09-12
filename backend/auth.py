@@ -17,37 +17,93 @@ EXTENSION POINT: replace `login()`'s body with a real Aadhaar eSign/OAuth
 callback once you have one. Everything downstream (the `require_role`
 decorator, the frontend's token handling) stays the same — only the
 identity-issuing step changes.
+
+SESSION STORAGE
+Sessions live in Redis whenever REDIS_URL is configured, and in the
+process-local `_SESSIONS` dict otherwise. This is not an optimisation: the
+container image runs two gunicorn workers, and a process-local dict means a
+user who logs in through one worker is told their token is invalid by the
+other. The public functions below are unchanged by which backend is active.
 """
 
+import hashlib
 import uuid
 
-VALID_ROLES = {"REGISTRAR", "BANK", "BUYER", "AUDITOR"}
+import cache
+import config
 
-# In-memory session store: token -> {username, role}. Resets on server
-# restart — fine for a hackathon demo, swap for Redis at real scale.
+VALID_ROLES = {"REGISTRAR", "OWNER", "NOMINEE", "BUYER", "BANK", "AUDITOR"}
+
+# Demo directory only. The browser identifies a user; the server resolves
+# authority. Production replaces this with the approved identity provider.
+DEMO_IDENTITIES = {
+    "reg1": "REGISTRAR", "registrar_noida2": "REGISTRAR", "bank1": "BANK",
+    "buyer1": "BUYER", "auditor1": "AUDITOR", "rajesh kumar": "OWNER",
+    "suresh kumar": "OWNER", "anita singh": "OWNER", "sunita kumar": "NOMINEE",
+}
+
+# In-process session store: token -> {username, role}. Used only when Redis is
+# not configured, i.e. the zero-infrastructure demo, where it resets on server
+# restart exactly as it always has. Kept under its original name because the
+# test suite resets it directly.
 _SESSIONS = {}
 
 
+def _token_key(token: str) -> str:
+    """The cache key for a token — the token's SHA-256, never the token.
+
+    A raw token in a Redis key means read access to the cache is session
+    theft. The `sessions.token_hash` column in the operational schema records
+    the same decision for the database-backed store.
+    """
+    return hashlib.sha256((token or "").encode("utf-8")).hexdigest()
+
+
 def login(username: str, role: str) -> dict:
-    role = (role or "").upper()
     username = (username or "").strip()
     if not username:
         raise ValueError("username is required")
-    if role not in VALID_ROLES:
+    requested_role = (role or "").upper()
+    if requested_role and requested_role not in VALID_ROLES:
         raise ValueError(f"role must be one of: {', '.join(sorted(VALID_ROLES))}")
+    role = DEMO_IDENTITIES.get(username.lower())
+    if not role:
+        raise ValueError("identity is not provisioned in the demo directory")
+    if requested_role and requested_role != role:
+        raise ValueError("role is assigned by the identity directory and cannot be selected by the client")
 
     token = str(uuid.uuid4())
     session = {"username": username, "role": role}
-    _SESSIONS[token] = session
+    if cache.enabled():
+        # Expiry comes from the store's TTL, so an abandoned session cannot
+        # outlive it. The in-process fallback keeps its original
+        # never-expiring behaviour so a long offline demo is not interrupted.
+        cache.session_put(_token_key(token), session, config.SESSION_TTL_SECONDS)
+    else:
+        _SESSIONS[token] = session
     return {"token": token, **session}
 
 
 def get_session(token: str):
+    """The session for a token, or None when it is unknown or expired.
+
+    Raises `cache.SessionBackendUnavailable` if Redis is the configured store
+    and did not answer. That propagates deliberately: a caller must not read an
+    infrastructure failure as "not authenticated", and must never be able to
+    read it as "authenticated".
+    """
+    if not token:
+        return None
+    if cache.enabled():
+        return cache.session_get(_token_key(token))
     return _SESSIONS.get(token)
 
 
 def logout(token: str):
-    _SESSIONS.pop(token, None)
+    if cache.enabled():
+        cache.session_delete(_token_key(token))
+    else:
+        _SESSIONS.pop(token, None)
 
 
 def extract_token(flask_request) -> str:

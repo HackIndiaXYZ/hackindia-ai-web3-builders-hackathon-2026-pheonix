@@ -3,6 +3,17 @@
     "ulpin": "UP-0001-CLEAN",
     "survey_number": "SN-245-A",
     "current_owner": "Rajesh Kumar",
+    "ownership_type": "JOINT",
+    "owners": [
+      {"name": "Rajesh Kumar", "share_percent": 50, "wallet_address": "demo:rajesh", "credential_status": "ACTIVE"},
+      {"name": "Suresh Kumar", "share_percent": 30, "wallet_address": "demo:suresh", "credential_status": "ACTIVE"},
+      {"name": "Anita Singh", "share_percent": 20, "wallet_address": "demo:anita", "credential_status": "ACTIVE"}
+    ],
+    "ownership_policy": {"required_approvals": 3, "total_owners": 3},
+    "nominees": [{"name": "Sunita Kumar", "status": "DORMANT", "relationship": "Spouse"}],
+    "encumbrances": [],
+    "disputes": [],
+    "frozen": false,
     "area_sqm": 1200,
     "registration_office": "Sub-Registrar Noida-II",
     "last_registered_date": "2022-03-15",

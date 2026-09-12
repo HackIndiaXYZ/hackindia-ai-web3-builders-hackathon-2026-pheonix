@@ -235,6 +235,23 @@ That setup file has you put a wallet private key in `contracts/.env`. The root
 `.gitignore` excludes `.env` for exactly that reason — use a throwaway testnet
 wallet, never a real one.
 
+## V2 PostgreSQL / Supabase migration
+
+The offline demo remains the default. For a production-shaped deployment, set
+the server-only `DATABASE_URL` supplied by Supabase, install the backend
+requirements, then run:
+
+```bash
+cd backend
+python migrate.py
+```
+
+The canonical schema is versioned in `backend/migrations/`. See
+[`docs/architecture.md`](./docs/architecture.md) and
+[`V2_IMPLEMENTATION.md`](./V2_IMPLEMENTATION.md) for migration boundaries.
+Never put `DATABASE_URL`, UIDAI credentials, registrar signing keys, or object
+storage credentials in the frontend.
+
 ## Where to extend next
 
 1. **Deploy the contract to Polygon Amoy** and flip `CHAIN_MODE=live`.

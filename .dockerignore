@@ -1,0 +1,27 @@
+.git
+.gitignore
+
+# Never let a local secrets file reach the build context.
+.env
+.env.*
+!.env.example
+
+**/node_modules
+**/__pycache__
+**/*.py[cod]
+.pytest_cache
+venv
+.venv
+
+# Hardhat build output — the contracts are not part of the API image.
+contracts/artifacts
+contracts/cache
+contracts/typechain-types
+
+# Locally stored demo evidence must not be baked into an image.
+backend/data/documents
+
+.vscode
+.idea
+.DS_Store
+Thumbs.db

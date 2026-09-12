@@ -14,3 +14,15 @@ eth-account==0.13.4
 
 # Test suite: pytest
 pytest==8.3.4
+
+# PostgreSQL/Supabase operational persistence. Imported lazily so the local
+# mock-mode demo remains usable without a database service.
+psycopg[binary]>=3.2.10,<4
+
+# Shared sessions, rate limiting and lookup caches. Also imported lazily —
+# without REDIS_URL the app falls back to process-local state.
+redis==5.2.1
+
+# Production WSGI server (used by the container image; `python app.py` still
+# runs the Flask development server for local work).
+gunicorn==23.0.0

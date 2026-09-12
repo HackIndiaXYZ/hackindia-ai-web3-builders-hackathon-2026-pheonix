@@ -1,0 +1,107 @@
+name: land-registry
+
+# Local production-shaped stack: PostGIS + Redis + API + outbox worker.
+#
+# Supabase is managed PostgreSQL, so moving to it is a DATABASE_URL change
+# rather than a code change. Running the same schema locally is what makes the
+# persistence requirements ("verify ownership/transfer/approval/audit/outbox
+# persistence") actually verifiable.
+
+x-app-env: &app-env
+  DATABASE_URL: postgresql://land_registry:${POSTGRES_PASSWORD:-local-dev-only}@db:5432/land_registry
+  REDIS_URL: redis://cache:6379/0
+  CHAIN_MODE: ${CHAIN_MODE:-mock}
+  SESSION_SECRET: ${SESSION_SECRET:-local-dev-only-change-me}
+  SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS:-3600}
+  RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-120}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: land_registry
+      # Local development only. A real deployment supplies DATABASE_URL from a
+      # secret store and never uses this file.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-dev-only}
+      POSTGRES_DB: land_registry
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      # pg_isready alone reports ready before init scripts finish, so also
+      # require that the database actually answers a query.
+      test: ["CMD-SHELL", "pg_isready -U land_registry -d land_registry && psql -U land_registry -d land_registry -c 'SELECT 1' >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  cache:
+    image: redis:7-alpine
+    # Sessions live here, so a restart should not log every user out.
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - cache_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  # One-shot: applies backend/migrations/*.sql, then exits. The API waits for
+  # it to complete successfully so it never starts against an empty database.
+  migrate:
+    build: .
+    command: ["python", "migrate.py"]
+    environment: *app-env
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build: .
+    environment: *app-env
+    ports:
+      - "5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:5000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  # The worker is the ONLY process permitted to finalize a transfer. Keeping it
+  # a separate service is the architectural boundary, not just a deployment
+  # convenience: an HTTP request can never reach COMPLETED.
+  worker:
+    build: .
+    command: ["python", "outbox_worker.py"]
+    environment:
+      <<: *app-env
+      OUTBOX_POLL_INTERVAL: ${OUTBOX_POLL_INTERVAL:-5}
+      OUTBOX_MAX_ATTEMPTS: ${OUTBOX_MAX_ATTEMPTS:-5}
+    depends_on:
+      db:
+        condition: service_healthy
+      cache:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  cache_data:

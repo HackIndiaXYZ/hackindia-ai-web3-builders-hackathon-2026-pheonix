@@ -1,0 +1,4 @@
+-- Compatibility entry point.
+-- The canonical, versioned Supabase/PostgreSQL schema is:
+-- backend/migrations/001_v2_operational_schema.sql
+-- Apply it with: DATABASE_URL=... python backend/migrate.py

@@ -1,6 +1,8 @@
 # Secrets — LIVE_CHAIN_SETUP.md has you put a wallet private key in
 # contracts/.env. Never commit these.
 .env
+backend/data/documents/
+backend/data/*.db
 .env.*
 !.env.example
 

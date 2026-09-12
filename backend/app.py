@@ -40,6 +40,8 @@ EXTENSION POINTS are marked inline with "EXTENSION POINT:" comments.
 import json
 import os
 import tempfile
+import hashlib
+import uuid
 from datetime import datetime, timezone
 from functools import wraps
 
@@ -47,12 +49,17 @@ from flask import Flask, jsonify, request, send_from_directory
 
 import assessment_store
 import auth
+import cache
+import config
 import fraud_engine
 import gis_check
+import observability
 import validation
+from v2_registry import V2Registry
 from fraud_engine import FraudEngine
 from risk_report import explain_with_source
 from validation import ValidationError
+from title_history import TitleTimelineService, OwnershipGraphService
 
 # ------------------------------------------------------------ chain mode ----
 # CHAIN_MODE=mock  (default) -> in-memory simulated chain, always works,
@@ -77,6 +84,39 @@ FRONTEND_DIR = os.path.abspath(
 
 app = Flask(__name__, static_folder=None)
 engine = FraudEngine()
+timeline_service = TitleTimelineService()
+ownership_graph_service = OwnershipGraphService()
+
+# Validate at import, not in __main__: under gunicorn __main__ never runs, so
+# a misconfigured production container would otherwise boot happily and fail at
+# the first request instead of refusing to start.
+config.validate()
+observability.configure_logging(app)
+app.logger.info("configuration loaded: %s", config.summary())
+
+RATE_LIMIT = config.RATE_LIMIT_PER_MINUTE
+
+#: Liveness and readiness must answer while the service is under load — a probe
+#: that 429s makes an orchestrator kill a container that is merely busy.
+_UNLIMITED_PATHS = {"/health", "/ready"}
+
+
+@app.before_request
+def basic_security_controls():
+    """Edge rate limiting, shared across workers when Redis is configured.
+
+    The counter lives in `cache` rather than a module dict: with two gunicorn
+    workers a process-local counter enforces roughly twice the configured
+    limit, and it also grew without bound because nothing ever evicted an old
+    (ip, minute) bucket. Redis keys carry their window and expire themselves.
+    """
+    if request.method == "OPTIONS":
+        return "", 204
+    if request.path in _UNLIMITED_PATHS:
+        return None
+    identity_key = request.remote_addr or "unknown"
+    if cache.rate_limit_exceeded(identity_key, RATE_LIMIT):
+        return jsonify({"error": "rate limit exceeded"}), 429
 
 
 @app.after_request
@@ -85,9 +125,20 @@ def add_cors_headers(response):
     # this same process makes these headers unnecessary for the normal path,
     # but they're kept so opening frontend/index.html directly from disk (the
     # file:// fallback) still works.
-    response.headers["Access-Control-Allow-Origin"] = "*"
+    allowed_origin = config.ALLOWED_ORIGIN
+    origin = request.headers.get("Origin")
+    if allowed_origin and origin == allowed_origin:
+        response.headers["Access-Control-Allow-Origin"] = allowed_origin
+        response.headers["Vary"] = "Origin"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Content-Security-Policy"] = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com"
+    if request.is_secure:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
 
 
@@ -106,7 +157,22 @@ def handle_commit_not_authorized(err):
     return jsonify({"error": str(err)}), err.http_status
 
 
+@app.errorhandler(cache.SessionBackendUnavailable)
+def handle_session_backend_unavailable(err):
+    """503, never 401.
+
+    When Redis is the session store and it stops answering, nobody's token is
+    invalid — the server cannot tell. Reporting that as "authentication
+    required" would send every signed-in user to the login screen to obtain a
+    token the server also could not read, and would hide an infrastructure
+    outage as a wave of user error.
+    """
+    app.logger.error("session backend unavailable: %s", err)
+    return jsonify({"error": "session service is temporarily unavailable"}), 503
+
+
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+DOCUMENT_DIR = os.path.join(DATA_DIR, "documents")
 
 
 def load_properties():
@@ -123,6 +189,7 @@ def load_pending_transfers():
 # EXTENSION POINT: swap this for a real PostgreSQL-backed repository layer
 # (see the CTO architecture doc's schema in Section 4/6) once you're past MVP.
 PROPERTIES = load_properties()
+v2 = V2Registry()
 
 
 def require_role(*allowed_roles):
@@ -230,7 +297,7 @@ def logout():
 
 @app.route("/api/properties", methods=["GET"])
 def list_properties():
-    return jsonify(list(PROPERTIES.values()))
+    return jsonify([v2.enrich_parcel(p) for p in PROPERTIES.values()])
 
 
 @app.route("/api/properties", methods=["POST"])
@@ -301,7 +368,87 @@ def get_property(ulpin):
     if not prop:
         return jsonify({"error": "not found"}), 404
     onchain_history = chain.get_history(ulpin)
-    return jsonify({**prop, "onchain_commits": onchain_history})
+    return jsonify({**v2.enrich_parcel(prop), "onchain_commits": onchain_history})
+
+
+@app.route("/api/parcels/<ulpin>/timeline", methods=["GET"])
+def parcel_timeline(ulpin):
+    prop = PROPERTIES.get(ulpin)
+    if not prop:
+        return jsonify({"error": "not found"}), 404
+    timeline = timeline_service.build(v2.enrich_parcel(prop), chain.get_history(ulpin), v2.list_transfers(), v2.list_audit())
+    query = request.args.get("q", "").strip().lower()
+    if query:
+        timeline = [item for item in timeline if query in str(item).lower()]
+    return jsonify(timeline)
+
+
+@app.route("/api/parcels/<ulpin>/ownership-graph", methods=["GET"])
+def ownership_graph(ulpin):
+    prop = PROPERTIES.get(ulpin)
+    if not prop:
+        return jsonify({"error": "not found"}), 404
+    timeline = timeline_service.build(v2.enrich_parcel(prop), chain.get_history(ulpin), v2.list_transfers(), v2.list_audit())
+    return jsonify(ownership_graph_service.build(v2.enrich_parcel(prop), timeline))
+
+
+@app.route("/api/workspaces/registrar", methods=["GET"])
+@require_role("REGISTRAR")
+def registrar_workspace():
+    return jsonify({"pending_transfers": v2.list_transfers(statuses={"REGISTRAR_REVIEW", "READY_TO_COMMIT", "MST_FAILED"}),
+                    "pending_successions": v2.list_succession_cases(exclude_statuses={"SUCCESSOR_ACTIVATED"}),
+                    "credential_recoveries": v2.list_recovery_cases(),
+                    "frozen_parcels": [v2.enrich_parcel(p) for p in PROPERTIES.values() if p.get("frozen")],
+                    "disputed_parcels": [v2.enrich_parcel(p) for p in PROPERTIES.values() if p.get("disputes")]})
+
+
+@app.route("/api/workspaces/nominee", methods=["GET"])
+@require_role("NOMINEE", "BUYER")
+def nominee_workspace():
+    user = request.session["username"]
+    related = [v2.enrich_parcel(p) for p in PROPERTIES.values() if any(n.get("name", "").lower() == user.lower() for n in p.get("nominees", []))]
+    return jsonify({"nominations": related, "succession_cases": v2.list_succession_cases(nominee=user),
+                    "notifications": v2.list_notifications(recipient=user)})
+
+
+@app.route("/api/reports/parcel/<ulpin>", methods=["GET"])
+@require_role("BANK", "AUDITOR", "REGISTRAR")
+def parcel_report(ulpin):
+    prop = PROPERTIES.get(ulpin)
+    if not prop:
+        return jsonify({"error": "not found"}), 404
+    parcel = v2.enrich_parcel(prop)
+    health = title_health(ulpin).get_json()
+    timeline = timeline_service.build(parcel, chain.get_history(ulpin), v2.list_transfers(), v2.list_audit())
+    return jsonify({"report_type": "PARCEL_TITLE_REPORT", "generated_at": datetime.now(timezone.utc).isoformat(), "parcel": parcel,
+                    "title_health": health, "timeline": timeline, "blockchain_events": chain.get_history(ulpin)})
+
+
+@app.route("/api/parcels/<ulpin>/title-health", methods=["GET"])
+def title_health(ulpin):
+    prop = PROPERTIES.get(ulpin)
+    if not prop:
+        return jsonify({"error": "not found"}), 404
+    parcel = v2.enrich_parcel(prop)
+    deductions = 20 * len(parcel["disputes"]) + 10 * len(parcel["encumbrances"])
+    if parcel["frozen"]:
+        deductions += 30
+    return jsonify({"ulpin": ulpin, "score": max(0, 100 - deductions),
+                    "factors": {"ownership_continuity": "VERIFIED", "document_integrity": "VERIFIED",
+                                "boundary_consistency": "VERIFIED" if prop.get("boundary") else "NOT_AVAILABLE",
+                                "encumbrances": len(parcel["encumbrances"]), "disputes": len(parcel["disputes"]),
+                                "frozen": parcel["frozen"]}})
+
+
+@app.route("/api/parcels/<ulpin>/freeze", methods=["POST"])
+@require_role("REGISTRAR")
+def freeze_parcel(ulpin):
+    prop = PROPERTIES.get(ulpin)
+    if not prop:
+        return jsonify({"error": "not found"}), 404
+    prop["frozen"] = bool(validation.require_body(request.get_json(force=True, silent=True)).get("frozen", True))
+    v2.audit(request.session["username"], "PARCEL_FROZEN" if prop["frozen"] else "PARCEL_UNFROZEN", ulpin)
+    return jsonify({"ulpin": ulpin, "frozen": prop["frozen"]})
 
 
 # ------------------------------------------------------------- transfers ----
@@ -329,6 +476,8 @@ def commit_transfer(ulpin):
     prop = PROPERTIES.get(ulpin)
     if not prop:
         return jsonify({"error": "not found"}), 404
+    if prop.get("frozen"):
+        return jsonify({"error": "parcel is frozen; transfers are not permitted"}), 409
 
     buyer = validation.require_str(body, "buyer")
     decision = assessment_store.authorize_commit(
@@ -350,6 +499,13 @@ def commit_transfer(ulpin):
     assessment_store.mark_consumed(body["assessment_id"], entry["tx_hash"])
 
     prop["current_owner"] = buyer
+    # Keep the legacy field and the V2 ownership projection in sync.  A
+    # dedicated V2 workflow below handles joint ownership; this compatibility
+    # path remains for the original fraud-engine demo.
+    prop["owners"] = [{"name": buyer, "share_percent": 100, "wallet_address": None,
+                       "credential_status": "ACTIVE"}]
+    prop["ownership_type"] = "SOLE"
+    prop["ownership_policy"] = {"required_approvals": 1, "total_owners": 1}
     prop["transfer_history"].append({
         "from": entry["from"], "to": entry["to"],
         "date": entry["timestamp"][:10], "doc_hash": entry["doc_hash"],
@@ -363,6 +519,264 @@ def commit_transfer(ulpin):
         "ai_verified": decision["ai_verified"],
         "override_reason": decision["override_reason"] or None,
     })
+
+
+# V2 workflow endpoints -----------------------------------------------------
+# These write operational workflow state only.  A background outbox worker is
+# the production boundary that later submits READY_TO_COMMIT transfers to MST.
+
+@app.route("/api/v2/transfers", methods=["POST"])
+@require_role("OWNER", "REGISTRAR")
+def create_v2_transfer():
+    body = validation.require_body(request.get_json(force=True, silent=True))
+    ulpin = validation.require_str(body, "parcel_id", max_length=64)
+    buyer = validation.require_str(body, "buyer")
+    prop = PROPERTIES.get(ulpin)
+    if not prop:
+        return jsonify({"error": "not found"}), 404
+    parcel = v2.enrich_parcel(prop)
+    if request.session["role"] == "OWNER" and request.session["username"] not in [o["name"] for o in parcel["owners"]]:
+        return jsonify({"error": "only an active owner can initiate this parcel transfer"}), 403
+    transfer = v2.create_transfer(parcel, buyer,
+                                  validation.optional_str(body, "document_hash", default="PENDING", max_length=128),
+                                  validation.optional_str(body, "assessment_hash", default="PENDING", max_length=128),
+                                  request.session["username"])
+    return jsonify(transfer), 201
+
+
+@app.route("/api/v2/transfers/<transfer_id>", methods=["GET"])
+def get_v2_transfer(transfer_id):
+    transfer = v2.get_transfer(transfer_id)
+    if not transfer:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(transfer)
+
+
+@app.route("/api/v2/transfers/<transfer_id>/approve", methods=["POST"])
+@require_role("OWNER", "REGISTRAR", "BUYER")
+def approve_v2_transfer(transfer_id):
+    if request.session["role"] == "OWNER":
+        return jsonify({"error": "owner approval requires an EIP-712 transfer signature"}), 409
+    try:
+        transfer = v2.approve(transfer_id, request.session["username"], request.session["role"])
+    except KeyError as e:
+        return jsonify({"error": str(e)}), 404
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 403
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 409
+    return jsonify(transfer)
+
+
+@app.route("/api/v2/transfers/<transfer_id>/submit", methods=["POST"])
+@require_role("REGISTRAR")
+def submit_v2_transfer(transfer_id):
+    """Demo outbox worker handoff. Production invokes this asynchronously only
+    after a durable outbox claim and waits for MST finality before confirmation."""
+    try:
+        transfer, _ = v2.submit_for_commit(transfer_id, request.session["username"])
+    except KeyError as e:
+        return jsonify({"error": str(e)}), 404
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 409
+    return jsonify({"transfer": transfer, "message": "Queued for the outbox worker; it is not completed until chain confirmation."}), 202
+
+
+def process_v2_outbox_once():
+    """Worker entry point. In production this runs from a durable queue, not an
+    HTTP request. A returned chain receipt is treated as confirmation only when
+    the configured adapter guarantees finality."""
+    item = v2.next_outbox_item("SUBMITTED")
+    if not item:
+        return None
+    transfer = v2.get_transfer(item["transfer_id"])
+    if not transfer:
+        return None
+    prop = PROPERTIES.get(transfer["parcel_id"])
+    if not prop or prop.get("frozen"):
+        failed = v2.fail_transfer(transfer["transfer_id"], "parcel unavailable or frozen")
+        return {"transfer": failed, "error": "parcel unavailable or frozen"}
+    try:
+        entry = chain.register_transfer(transfer["parcel_id"], prop["current_owner"], transfer["buyer"], transfer["document_hash"], ai_verified=False)
+        v2.confirm_commit(transfer["transfer_id"], entry["tx_hash"], "outbox-worker")
+        # mock_chain and chain_client both return confirmed receipts here.
+        completed = v2.confirm_finality(transfer["transfer_id"], "outbox-worker")
+        prop.update({"current_owner": transfer["buyer"], "owners": [{"name": transfer["buyer"], "share_percent": 100, "wallet_address": None, "credential_status": "ACTIVE"}], "ownership_type": "SOLE", "ownership_policy": {"required_approvals": 1, "total_owners": 1}, "last_registered_date": entry["timestamp"][:10]})
+        prop["transfer_history"].append({"from": entry["from"], "to": entry["to"], "date": entry["timestamp"][:10], "doc_hash": entry["doc_hash"]})
+        return {"transfer": completed, "onchain_entry": entry}
+    except Exception as exc:
+        # Broad on purpose — a chain adapter fails in many ways and the worker
+        # must survive all of them. But log the traceback: this handler used to
+        # swallow a NameError raised inside confirm_finality, which made a
+        # permanent code defect look like a transient chain failure on every
+        # single transfer, so nothing ever reached COMPLETED.
+        app.logger.exception("outbox submission failed for transfer %s", transfer["transfer_id"])
+        failed = v2.fail_transfer(transfer["transfer_id"], exc)
+        return {"transfer": failed, "error": "chain submission failed"}
+
+
+@app.route("/api/audit", methods=["GET"])
+@require_role("REGISTRAR", "AUDITOR")
+def audit_events():
+    return jsonify(v2.list_audit(newest_first=True))
+
+
+@app.route("/api/wallets/challenge", methods=["POST"])
+@require_role("OWNER")
+def wallet_challenge():
+    body = validation.require_body(request.get_json(force=True, silent=True))
+    parcel_id = validation.require_str(body, "parcel_id", max_length=64)
+    wallet_address = validation.require_str(body, "wallet_address", max_length=200)
+    prop = PROPERTIES.get(parcel_id)
+    if not prop:
+        return jsonify({"error": "not found"}), 404
+    if request.session["username"] not in [o["name"] for o in v2.enrich_parcel(prop)["owners"]]:
+        return jsonify({"error": "only an active owner can link a parcel wallet"}), 403
+    return jsonify(v2.create_challenge(request.session["username"], parcel_id, wallet_address)), 201
+
+
+@app.route("/api/wallets/verify", methods=["POST"])
+@require_role("OWNER")
+def verify_wallet():
+    body = validation.require_body(request.get_json(force=True, silent=True))
+    try:
+        wallet = v2.link_wallet(validation.require_str(body, "challenge_id", max_length=64),
+                                validation.require_str(body, "signature", max_length=512))
+    except KeyError as e:
+        return jsonify({"error": str(e)}), 404
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 403
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 409
+    if wallet["user"] != request.session["username"]:
+        return jsonify({"error": "challenge belongs to another user"}), 403
+    return jsonify({"wallet": wallet})
+
+
+@app.route("/api/v2/transfers/<transfer_id>/approval-challenge", methods=["POST"])
+@require_role("OWNER")
+def transfer_approval_challenge(transfer_id):
+    try:
+        return jsonify(v2.create_transfer_approval_challenge(transfer_id, request.session["username"])), 201
+    except KeyError as e:
+        return jsonify({"error": str(e)}), 404
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 403
+
+
+@app.route("/api/v2/transfers/approve-signature", methods=["POST"])
+@require_role("OWNER")
+def approve_v2_transfer_signature():
+    body = validation.require_body(request.get_json(force=True, silent=True))
+    challenge_id = validation.require_str(body, "challenge_id", max_length=64)
+    challenge = v2.get_challenge(challenge_id)
+    if not challenge:
+        return jsonify({"error": "challenge not found"}), 404
+    if challenge.get("user", "").lower() != request.session["username"].lower():
+        return jsonify({"error": "approval challenge belongs to another user"}), 403
+    try:
+        transfer = v2.approve_with_signature(challenge_id,
+                                             validation.require_str(body, "signature", max_length=512))
+    except KeyError as e:
+        return jsonify({"error": str(e)}), 404
+    except PermissionError as e:
+        return jsonify({"error": str(e)}), 403
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 409
+    return jsonify(transfer)
+
+
+@app.route("/api/notifications", methods=["GET"])
+@require_role("OWNER", "NOMINEE", "BUYER", "REGISTRAR")
+def notifications():
+    user = request.session["username"]
+    return jsonify(v2.list_notifications(recipient=user, newest_first=True))
+
+
+@app.route("/api/credentials/recovery", methods=["POST"])
+@require_role("OWNER")
+def request_credential_recovery():
+    body = validation.require_body(request.get_json(force=True, silent=True))
+    parcel_id = validation.require_str(body, "parcel_id", max_length=64)
+    if parcel_id not in PROPERTIES:
+        return jsonify({"error": "not found"}), 404
+    try:
+        return jsonify(v2.request_recovery(request.session["username"], parcel_id, request.session["username"])), 201
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 409
+
+
+@app.route("/api/credentials/recovery/<recovery_id>/approve", methods=["POST"])
+@require_role("REGISTRAR")
+def approve_credential_recovery(recovery_id):
+    body = validation.require_body(request.get_json(force=True, silent=True))
+    try:
+        case = v2.approve_recovery(recovery_id, request.session["username"], validation.require_str(body, "new_wallet_address", max_length=200))
+    except KeyError as e:
+        return jsonify({"error": str(e)}), 404
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 409
+    return jsonify(case)
+
+
+@app.route("/api/succession", methods=["POST"])
+@require_role("OWNER", "NOMINEE", "REGISTRAR")
+def open_succession():
+    body = validation.require_body(request.get_json(force=True, silent=True))
+    ulpin = validation.require_str(body, "parcel_id", max_length=64)
+    prop = PROPERTIES.get(ulpin)
+    if not prop:
+        return jsonify({"error": "not found"}), 404
+    try:
+        case = v2.start_succession(v2.enrich_parcel(prop), validation.require_str(body, "nominee"), request.session["username"])
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify(case), 201
+
+
+@app.route("/api/succession/<case_id>/verify", methods=["POST"])
+@require_role("REGISTRAR")
+def verify_succession(case_id):
+    body = validation.require_body(request.get_json(force=True, silent=True))
+    try:
+        case = v2.verify_succession(case_id, request.session["username"],
+                                    validation.require_str(body, "evidence_reference", max_length=200))
+    except KeyError as e:
+        return jsonify({"error": str(e)}), 404
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 409
+    return jsonify(case)
+
+
+@app.route("/api/succession/<case_id>/activate", methods=["POST"])
+@require_role("REGISTRAR")
+def activate_successor(case_id):
+    case = v2.get_succession_case(case_id)
+    if not case:
+        return jsonify({"error": "not found"}), 404
+    prop = PROPERTIES.get(case["parcel_id"])
+    if not prop:
+        # The case references a parcel that is no longer registered. Without
+        # this guard activate_successor dereferences None and returns a 500.
+        return jsonify({"error": "parcel for this succession case is not registered"}), 404
+    try:
+        return jsonify(v2.activate_successor(case_id, prop, request.session["username"]))
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 409
+
+
+@app.route("/api/verification/<ulpin>", methods=["GET"])
+def public_verification(ulpin):
+    prop = PROPERTIES.get(ulpin)
+    if not prop:
+        return jsonify({"error": "not found"}), 404
+    onchain = chain.get_history(ulpin)
+    health = title_health(ulpin).get_json()
+    return jsonify({"verification_id": "LV-" + ulpin[-8:].replace("-", "").upper(), "ulpin": ulpin,
+                    "title_status": "FROZEN" if prop.get("frozen") else "VERIFIED",
+                    "ownership_history_events": len(prop.get("transfer_history", [])),
+                    "latest_transfer": prop.get("last_registered_date"), "title_health": health["score"],
+                    "blockchain_record": "VERIFIED" if onchain else "NOT_YET_ANCHORED"})
 
 
 @app.route("/api/documents/upload", methods=["POST"])
@@ -389,6 +803,38 @@ def upload_document():
         os.unlink(tmp_path)
 
     return jsonify(result)
+
+
+@app.route("/api/v2/documents", methods=["POST"])
+@require_role("OWNER", "BUYER", "REGISTRAR")
+def store_v2_document():
+    """Stores private evidence locally for the demo and returns its SHA-256.
+    The opaque reference/hash, never the file body, is suitable for a transfer
+    workflow and eventual immutable ledger anchor."""
+    if "file" not in request.files:
+        return jsonify({"error": "no file uploaded"}), 400
+    uploaded = request.files["file"]
+    if not uploaded.filename:
+        return jsonify({"error": "file name is required"}), 400
+    raw = uploaded.read()
+    if not raw:
+        return jsonify({"error": "file cannot be empty"}), 400
+    if len(raw) > 15 * 1024 * 1024:
+        return jsonify({"error": "file exceeds the 15 MB demo limit"}), 413
+    os.makedirs(DOCUMENT_DIR, exist_ok=True)
+    document_id = f"DOC-{uuid.uuid4().hex[:12].upper()}"
+    digest = hashlib.sha256(raw).hexdigest()
+    safe_extension = os.path.splitext(uploaded.filename)[1].lower()
+    if safe_extension not in {".pdf", ".png", ".jpg", ".jpeg"}:
+        return jsonify({"error": "only PDF, PNG, and JPEG evidence is supported"}), 400
+    filename = document_id + safe_extension
+    with open(os.path.join(DOCUMENT_DIR, filename), "wb") as stored:
+        stored.write(raw)
+    record = {"document_id": document_id, "document_type": request.form.get("document_type", "EVIDENCE"),
+              "storage_reference": filename, "hash": digest, "uploaded_by": request.session["username"],
+              "verification_status": "PENDING", "created_at": datetime.now(timezone.utc).isoformat()}
+    v2.audit(request.session["username"], "DOCUMENT_STORED", detail={"document_id": document_id, "hash": digest})
+    return jsonify(record), 201
 
 
 @app.route("/api/properties/<ulpin>/mint-certificate", methods=["POST"])
@@ -492,6 +938,64 @@ def reset_demo():
         "parcels": len(PROPERTIES),
         "note": "Seed data restored. On-chain history is immutable and was left intact.",
     })
+
+
+# ---------------------------------------------------- health / readiness ----
+# Registered before the frontend catch-all for clarity, though Werkzeug would
+# prefer these static rules over `/<path:filename>` regardless.
+
+@app.route("/health", methods=["GET"])
+def health():
+    """Liveness: is this process able to serve? No dependency checks.
+
+    Deliberately dependency-free. If /health consulted the database, a brief
+    database outage would make the orchestrator kill and restart every healthy
+    container — turning a recoverable dependency failure into an outage of its
+    own. Liveness answers "should I be restarted"; readiness answers "should I
+    receive traffic".
+    """
+    return jsonify({"status": "ok", "service": "land-registry", "chain_mode": CHAIN_MODE})
+
+
+@app.route("/ready", methods=["GET"])
+def ready():
+    """Readiness: are the dependencies this process needs actually usable?
+
+    Returns 503 with a per-dependency breakdown when something is down, so a
+    load balancer stops sending traffic here while the process stays up. Only
+    configured dependencies are checked — the offline demo configures neither
+    and is legitimately ready.
+    """
+    checks = {}
+
+    if config.DATABASE_URL:
+        checks["database"] = _check_database()
+    if config.REDIS_URL:
+        checks["cache"] = {"ok": cache.ping()}
+
+    ok = all(check["ok"] for check in checks.values())
+    payload = {"status": "ready" if ok else "not ready",
+               "checks": checks, "config": config.summary()}
+    return jsonify(payload), (200 if ok else 503)
+
+
+def _check_database():
+    """`SELECT 1` against Postgres. Reports the failure reason, not a traceback."""
+    try:
+        import psycopg
+    except ImportError:
+        return {"ok": False, "error": "psycopg is not installed"}
+    try:
+        # A short timeout on purpose: a readiness probe that blocks until the
+        # TCP default gives up is indistinguishable from a hung process.
+        with psycopg.connect(config.DATABASE_URL, connect_timeout=3) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+                cur.fetchone()
+        return {"ok": True}
+    except Exception as exc:
+        app.logger.warning("readiness database check failed: %s", exc)
+        return {"ok": False, "error": exc.__class__.__name__}
 
 
 # ------------------------------------------------------------- frontend ----

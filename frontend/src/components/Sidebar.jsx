@@ -9,6 +9,9 @@ const LINKS = [
   { path: "/registry", label: "Registry", icon: FiDatabase },
   { path: "/register", label: "Register Parcel", icon: FiPlusSquare },
   { path: "/transfer", label: "Transfer", icon: FiRepeat },
+  { path: "/workflow", label: "Approval Workflow", icon: FiRepeat },
+  { path: "/map", label: "Cadastral Map", icon: FiDatabase },
+  { path: "/operations", label: "Verification & Audit", icon: FiLink },
   { path: "/chain", label: "Blockchain Explorer", icon: FiLink },
 ];
 

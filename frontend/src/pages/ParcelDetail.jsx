@@ -4,6 +4,7 @@ import { FiArrowRight, FiMapPin } from "react-icons/fi";
 import { apiGet } from "../lib/api.js";
 import { navigate } from "../hooks/useHashRoute.js";
 import { EventBadge } from "../components/EventBadge.jsx";
+import { TitleIntelligence } from "./TitleIntelligence.jsx";
 
 export function ParcelDetail({ ulpin }) {
   const [prop, setProp] = useState(null);
@@ -32,8 +33,20 @@ export function ParcelDetail({ ulpin }) {
           <div className="mt-1 text-sm text-zinc-500">
             Survey {prop.survey_number} · {prop.area_sqm} sqm · {prop.registration_office}
           </div>
-          <div className="mt-4 text-xs uppercase tracking-wide text-zinc-500">Current registered owner</div>
-          <div className="text-xl font-semibold text-white">{prop.current_owner}</div>
+          <div className="mt-4 text-xs uppercase tracking-wide text-zinc-500">Active ownership</div>
+          <div className="space-y-1 text-sm text-zinc-200">
+            {(prop.owners || [{ name: prop.current_owner, share_percent: 100 }]).map((owner) => (
+              <div key={owner.name} className="flex items-center gap-2">
+                <span className="font-semibold text-white">{owner.name}</span>
+                <span className="font-mono text-xs text-accent">{owner.share_percent}%</span>
+                <span className="text-[10px] text-zinc-500">{owner.credential_status || "ACTIVE"}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 text-xs text-zinc-500">
+            {prop.ownership_policy?.required_approvals || 1}-of-{prop.ownership_policy?.total_owners || 1} owner approval policy
+            {prop.nominees?.length ? ` · Nominee: ${prop.nominees[0].name} (${prop.nominees[0].status})` : ""}
+          </div>
           {prop.boundary && (
             <div className="mt-2 flex items-center gap-1.5 text-xs text-zinc-500">
               <FiMapPin className="h-3.5 w-3.5" />
@@ -112,6 +125,7 @@ export function ParcelDetail({ ulpin }) {
           )}
         </motion.div>
       </div>
+      <TitleIntelligence ulpin={prop.ulpin} />
     </div>
   );
 }
