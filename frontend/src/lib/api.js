@@ -2,9 +2,14 @@
 // relative /api works with no CORS involved. The override exists for the
 // fallback case of opening frontend/index.html straight off disk (file://),
 // where there's no origin to be relative to.
+const isDevServer =
+  typeof window !== "undefined" &&
+  (window.location.port === "5173" || window.location.port === "3000");
+
 export const API_BASE =
-  window.location.protocol === "file:"
-    ? "http://localhost:5000/api"
+  typeof window !== "undefined" &&
+  (window.location.protocol === "file:" || isDevServer)
+    ? `http://${window.location.hostname || "localhost"}:5001/api`
     : "/api";
 
 export function authHeaders(token) {
