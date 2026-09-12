@@ -41,6 +41,20 @@ DEMO_IDENTITIES = {
     "reg1": "REGISTRAR", "registrar_noida2": "REGISTRAR", "bank1": "BANK",
     "buyer1": "BUYER", "auditor1": "AUDITOR", "rajesh kumar": "OWNER",
     "suresh kumar": "OWNER", "anita singh": "OWNER", "sunita kumar": "NOMINEE",
+    "priya sharma": "REGISTRAR", "rahul bansal": "BANK", "arvind mehta": "AUDITOR",
+    "ritu bansal": "BUYER",
+}
+
+# The portal displays recognizable badge/email fixtures while the server keeps
+# stable demo identities. Resolve these aliases before assigning authority so
+# a session is linked to the same database user as its related records.
+DEMO_LOGIN_ALIASES = {
+    "rajesh": "rajesh kumar", "rajesh@demo.local": "rajesh kumar",
+    "sunita": "sunita kumar", "sunita@demo.local": "sunita kumar",
+    "registrar_noida2": "priya sharma", "gov-reg-0182": "priya sharma",
+    "bank1": "rahul bansal", "rahul.bank": "rahul bansal", "rahul.bank@demo.local": "rahul bansal",
+    "auditor1": "arvind mehta", "arvind.audit": "arvind mehta", "arvind.audit@demo.local": "arvind mehta",
+    "buyer1": "ritu bansal", "ritu": "ritu bansal", "ritu@demo.local": "ritu bansal",
 }
 
 # In-process session store: token -> {username, role}. Used only when Redis is
@@ -64,6 +78,7 @@ def login(username: str, role: str) -> dict:
     username = (username or "").strip()
     if not username:
         raise ValueError("username is required")
+    username = DEMO_LOGIN_ALIASES.get(username.lower(), username)
     requested_role = (role or "").upper()
     if requested_role and requested_role not in VALID_ROLES:
         raise ValueError(f"role must be one of: {', '.join(sorted(VALID_ROLES))}")
@@ -81,7 +96,12 @@ def login(username: str, role: str) -> dict:
         # Expiry comes from the store's TTL, so an abandoned session cannot
         # outlive it. The in-process fallback keeps its original
         # never-expiring behaviour so a long offline demo is not interrupted.
-        cache.session_put(_token_key(token), session, config.SESSION_TTL_SECONDS)
+        try:
+            cache.session_put(_token_key(token), session, config.SESSION_TTL_SECONDS)
+        except cache.SessionBackendUnavailable:
+            if not config.ALLOW_LOCAL_SESSION_FALLBACK:
+                raise
+            _SESSIONS[token] = session
     else:
         _SESSIONS[token] = session
     return {"token": token, "username": username, "role": role, "csrf_token": session["csrf_token"]}
@@ -98,15 +118,20 @@ def get_session(token: str):
     if not token:
         return None
     if cache.enabled():
-        return cache.session_get(_token_key(token))
+        try:
+            session = cache.session_get(_token_key(token))
+        except cache.SessionBackendUnavailable:
+            if not config.ALLOW_LOCAL_SESSION_FALLBACK:
+                raise
+            return _SESSIONS.get(token)
+        return session or _SESSIONS.get(token)
     return _SESSIONS.get(token)
 
 
 def logout(token: str):
     if cache.enabled():
         cache.session_delete(_token_key(token))
-    else:
-        _SESSIONS.pop(token, None)
+    _SESSIONS.pop(token, None)
 
 
 def extract_token(flask_request) -> str:

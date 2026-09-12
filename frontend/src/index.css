@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* TitleLock — Modern Indian Government Portal Stylesheet */
 
 html, body, #root {
@@ -67,15 +71,52 @@ body.public-map-page {
   left: 16px;
   bottom: max(12px, env(safe-area-inset-bottom));
   z-index: 30;
-  max-width: min(720px, calc(100vw - 32px));
+  width: 32px;
+  height: 32px;
+  font-size: 0;
+}
+.attribution-trigger {
+  display: flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 9999px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.92);
+  color: #344054;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+.attribution-trigger:hover,
+.attribution-trigger:focus-visible {
+  color: #0B3A67;
+  outline: 2px solid #1769AA;
+  outline-offset: 2px;
+}
+.attribution-chip::after {
+  content: "Map data: OpenFreeMap, OpenMapTiles and OpenStreetMap contributors. Imagery: Esri, Maxar, Earthstar Geographics and the GIS User Community. Terrain: AWS Open Data.";
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  width: min(500px, calc(100vw - 32px));
   padding: 8px 12px;
   border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.96);
   color: #344054;
   font-size: 11px;
   line-height: 1.4;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+.attribution-chip:hover::after,
+.attribution-chip:focus-within::after {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 @layer utilities {

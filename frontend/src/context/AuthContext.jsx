@@ -3,7 +3,6 @@ import { currentSession, login as apiLogin, logout as apiLogout, setUnauthorized
 
 const AuthContext = createContext(null);
 const TOKEN_KEY = "land_registry_token";
-const SESSION_KEY = "land_registry_session";
 
 function usernameFor(identifier, role) {
   const value = String(identifier || "").trim().toLowerCase();
@@ -19,14 +18,11 @@ function errorResult(error) {
 
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY) || "");
-  const [user, setUser] = useState(() => {
-    try { return JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch { return null; }
-  });
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(Boolean(token));
 
   const clearSession = () => {
     localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(SESSION_KEY);
     setToken("");
     setUser(null);
   };
@@ -38,7 +34,6 @@ export function AuthProvider({ children }) {
       .then((session) => {
         const liveUser = { ...session, roles: [session.role], active_role: session.role };
         setUser(liveUser);
-        localStorage.setItem(SESSION_KEY, JSON.stringify(liveUser));
       })
       .catch(clearSession)
       .finally(() => setLoading(false));
@@ -50,7 +45,6 @@ export function AuthProvider({ children }) {
       const response = await apiLogin(usernameFor(identifier, role), role);
       const liveUser = { ...response, roles: [response.role], active_role: response.role };
       localStorage.setItem(TOKEN_KEY, response.token);
-      localStorage.setItem(SESSION_KEY, JSON.stringify(liveUser));
       setToken(response.token);
       setUser(liveUser);
       return { ok: true, user: liveUser };
@@ -67,7 +61,9 @@ export function AuthProvider({ children }) {
       isCitizen: roles.some((role) => ["OWNER", "BUYER", "NOMINEE"].includes(role)),
       isRegistrar: roles.includes("REGISTRAR"), isAuditor: roles.includes("AUDITOR"), isBank: roles.includes("BANK"),
       isDeceased: false, isRestricted: false,
-      loginCitizen: (identifier) => signIn(identifier, "OWNER"),
+      // Citizen identities may be an owner, buyer, or nominee. Let the server
+      // directory select the assigned role instead of forcing every login to OWNER.
+      loginCitizen: (identifier) => signIn(identifier, ""),
       loginRegistrar: (identifier) => signIn(identifier, "REGISTRAR"),
       loginAuditor: (identifier) => signIn(identifier, "AUDITOR"),
       loginBank: (identifier) => signIn(identifier, "BANK"),

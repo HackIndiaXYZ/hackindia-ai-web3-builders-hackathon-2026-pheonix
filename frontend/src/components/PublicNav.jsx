@@ -134,7 +134,7 @@ export function PublicNav({
         {/* CENTER: Desktop Floating Pill Search Bar (Hidden on small mobile) */}
         <div
           ref={searchContainerRef}
-          className="pointer-events-auto relative hidden md:block flex-1 max-w-lg mx-2"
+          className="pointer-events-auto absolute left-1/2 hidden w-[min(42vw,640px)] -translate-x-1/2 md:block"
         >
           <div className="relative flex items-center">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">

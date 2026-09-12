@@ -42,7 +42,11 @@ _local_values = {}
 
 def enabled():
     """True when Redis is the configured backend for shared state."""
-    return bool(config.REDIS_URL)
+    # The explicit local-demo setting is stronger than a stale REDIS_URL: do
+    # not spend several seconds probing an endpoint the developer has already
+    # chosen to bypass. Deployed/multi-worker configurations leave the flag
+    # false and continue to require Redis.
+    return bool(config.REDIS_URL) and not config.ALLOW_LOCAL_SESSION_FALLBACK
 
 
 def client():
@@ -53,7 +57,7 @@ def client():
     are transient and handled per call, so they never latch.
     """
     global _client, _client_unavailable
-    if not config.REDIS_URL or _client_unavailable:
+    if not enabled() or _client_unavailable:
         return None
     if _client is not None:
         return _client
@@ -105,6 +109,7 @@ def rate_limit_exceeded(identity, limit, window_seconds=60):
         if config.REDIS_URL:
             return False  # configured but unusable: fail open, see docstring
         return _local_rate_limit_exceeded(identity, window, limit)
+    global _client_unavailable
     try:
         pipe = conn.pipeline()
         pipe.incr(f"ratelimit:{identity}:{window}", 1)
@@ -113,6 +118,7 @@ def rate_limit_exceeded(identity, limit, window_seconds=60):
         pipe.expire(f"ratelimit:{identity}:{window}", window_seconds + 5)
         count = pipe.execute()[0]
     except Exception:
+        _client_unavailable = True
         log.warning("rate limit check failed; allowing the request", exc_info=True)
         return False
     return count > limit
@@ -137,9 +143,11 @@ def cached_set(key, value, ttl_seconds):
     if conn is None:
         _local_values[key] = (value, time.time() + ttl_seconds)
         return
+    global _client_unavailable
     try:
         conn.setex(key, int(ttl_seconds), json.dumps(value))
     except Exception:
+        _client_unavailable = True
         log.warning("cache write failed for %s", key, exc_info=True)
 
 
@@ -156,9 +164,11 @@ def cached_get(key):
             del _local_values[key]
             return None
         return value
+    global _client_unavailable
     try:
         raw = conn.get(key)
     except Exception:
+        _client_unavailable = True
         log.warning("cache read failed for %s", key, exc_info=True)
         return None
     if raw is None:
@@ -170,6 +180,7 @@ def cached_get(key):
 
 
 def cached_delete(key):
+    global _client_unavailable
     conn = client()
     if conn is None:
         _local_values.pop(key, None)
@@ -177,6 +188,7 @@ def cached_delete(key):
     try:
         conn.delete(key)
     except Exception:
+        _client_unavailable = True
         log.warning("cache delete failed for %s", key, exc_info=True)
 
 
@@ -195,12 +207,16 @@ class SessionBackendUnavailable(RuntimeError):
 
 
 def session_put(token, payload, ttl_seconds):
+    global _client_unavailable
     conn = client()
     if conn is None:
         raise SessionBackendUnavailable("session store is unavailable")
     try:
         conn.setex(f"session:{token}", int(ttl_seconds), json.dumps(payload))
     except Exception as exc:
+        # Avoid repeatedly waiting for a dead endpoint. Auth may elect its
+        # explicit local-demo fallback after receiving this exception.
+        _client_unavailable = True
         raise SessionBackendUnavailable("session store is unavailable") from exc
 
 
@@ -211,12 +227,14 @@ def session_get(token):
     returns 503 instead of silently treating everyone as unauthenticated —
     and, far worse, instead of any chance of failing open.
     """
+    global _client_unavailable
     conn = client()
     if conn is None:
         raise SessionBackendUnavailable("session store is unavailable")
     try:
         raw = conn.get(f"session:{token}")
     except Exception as exc:
+        _client_unavailable = True
         raise SessionBackendUnavailable("session store is unavailable") from exc
     if raw is None:
         return None

@@ -1,16 +1,7 @@
-// Same-origin by default: the Flask backend now serves this bundle, so
-// relative /api works with no CORS involved. The override exists for the
-// fallback case of opening frontend/index.html straight off disk (file://),
-// where there's no origin to be relative to.
-const isDevServer =
-  typeof window !== "undefined" &&
-  (window.location.port === "5173" || window.location.port === "3000");
-
-export const API_BASE =
-  typeof window !== "undefined" &&
-  (window.location.protocol === "file:" || isDevServer)
-    ? `http://${window.location.hostname || "localhost"}:${window.location.port === "5173" ? "5000" : "5001"}/api`
-    : "/api";
+// Keep browser requests same-origin. In development Vite proxies /api to
+// Flask; in production Flask serves /api itself. This avoids a CORS failure
+// when the dev server is opened at 127.0.0.1:5173 instead of localhost:5173.
+export const API_BASE = "/api";
 
 export function authHeaders(token) {
   return token ? { Authorization: "Bearer " + token } : {};

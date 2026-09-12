@@ -101,7 +101,9 @@ def test_overlapping_registration_is_rejected_with_geometry(client, registrar_to
     """Double-registration of one physical plot under two ULPINs."""
     res = client.post("/api/properties", json={
         "ulpin": "UP-0101-OVERLAP", "owner": "Land Grabber", "area_sqm": 900,
-        "boundary": [[20, 10], [45, 10], [45, 25], [20, 25]],
+        # The fixture parcels use real WGS84 coordinates around Greater Noida.
+        # This polygon deliberately overlaps UP-0001-CLEAN.
+        "boundary": [[77.50100, 28.47190], [77.50125, 28.47190], [77.50125, 28.47215], [77.50100, 28.47215]],
     }, headers=auth_header(registrar_token))
     assert res.status_code == 409
     body = res.get_json()

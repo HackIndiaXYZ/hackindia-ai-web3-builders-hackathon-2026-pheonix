@@ -9,52 +9,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" rel="stylesheet" />
 
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-  tailwind.config = {
-    theme: {
-      extend: {
-        colors: {
-          page: "#F7F9FC",
-          surface: "#FFFFFF",
-          border: "#D0D5DD",
-          text: {
-            primary: "#101828",
-            secondary: "#344054",
-            muted: "#667085",
-          },
-          gov: {
-            primary: "#0B3A67",
-            hover: "#1769AA",
-            saffron: "#FF9933",
-            white: "#FFFFFF",
-            green: "#138808",
-            navy: "#000080",
-          },
-          semantic: {
-            success: "#0F766E",
-            warning: "#B54708",
-            danger: "#B42318",
-          }
-        },
-        fontFamily: {
-          sans: ["Inter", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
-          mono: ["JetBrains Mono", "monospace"],
-        },
-        boxShadow: {
-          card: "0 1px 2px rgba(16, 24, 40, 0.06)",
-          "card-hover": "0 4px 12px rgba(16, 24, 40, 0.08)",
-        },
-        borderRadius: {
-          card: "8px",
-          input: "6px",
-          pill: "999px",
-        }
-      },
-    },
-  };
-</script>
-
 <style>
   * {
     box-sizing: border-box;
@@ -235,7 +189,7 @@
 
 <div id="root"></div>
 
-<script src="/dist/bundle.js"></script>
+<script type="module" src="/dist/bundle.js"></script>
 
 </body>
 </html>

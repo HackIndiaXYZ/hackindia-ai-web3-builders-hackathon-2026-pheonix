@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useSearchParams, useNavigate, Link } from "react-router-dom";
-import { useLiveAudit, useLiveParcels } from "../../services/liveData.js";
+import { useLiveParcels } from "../../services/liveData.js";
 import { Map, MapControls, fitAllParcels } from "../../components/MapExplorer.jsx";
 import { PublicNav } from "../../components/PublicNav.jsx";
 import { MapLegend } from "../../components/MapLegend.jsx";
 import { ParcelDrawer } from "./ParcelDrawer.jsx";
 import { ParcelTooltip } from "../../components/ParcelTooltip.jsx";
-import { ShieldCheck, KeyRound, Database, FileCheck, X, Activity, Layers, AlertCircle, CheckCircle2, Clock } from "lucide-react";
+import { ShieldCheck, KeyRound, Database, FileCheck, X, Activity, Layers, AlertCircle, CheckCircle2, Clock, Info } from "lucide-react";
 
 /**
  * Public Route /: Hybrid Visual Design
@@ -14,7 +14,6 @@ import { ShieldCheck, KeyRound, Database, FileCheck, X, Activity, Layers, AlertC
  */
 export function ExplorerPage() {
   const { data: parcels, loading: parcelsLoading, error: parcelsError } = useLiveParcels("");
-  const { data: auditEvents, loading: auditLoading, error: auditError } = useLiveAudit("");
   const mapHostRef = useRef(null);
   const navigate = useNavigate();
 
@@ -28,13 +27,13 @@ export function ExplorerPage() {
   const [hoverInfo, setHoverInfo] = useState(null);
   const [isSatellite, setIsSatellite] = useState(false);
   const [isTerrainEnabled, setIsTerrainEnabled] = useState(true);
+  const [is3DView, setIs3DView] = useState(true);
   const [isHowItWorksOpen, setIsHowItWorksOpen] = useState(false);
   const [activeLegendFilter, setActiveLegendFilter] = useState(null);
+  // Public visitors do not have permission to read the protected audit ledger.
+  // Keep this indicator informational instead of issuing a request that returns 401.
+  const recentEvents = [];
 
-  // Recent public activity feed
-  const [recentEvents, setRecentEvents] = useState([]);
-
-  useEffect(() => setRecentEvents(auditEvents.slice(0, 3)), [auditEvents]);
 
   // Prevent vertical body scrolling on public map
   useEffect(() => {
@@ -75,9 +74,9 @@ export function ExplorerPage() {
 
   const handleResetView = useCallback(() => {
     if (mapInstance) {
-      fitAllParcels(mapInstance, parcels);
+      fitAllParcels(mapInstance, parcels, is3DView);
     }
-  }, [mapInstance, parcels]);
+  }, [mapInstance, parcels, is3DView]);
 
   const handleResetBearing = useCallback(() => {
     if (mapInstance) {
@@ -114,8 +113,8 @@ export function ExplorerPage() {
 
   return (
     <div className="public-shell">
-      {(parcelsLoading || auditLoading) && <div className="fixed top-4 left-1/2 z-30 -translate-x-1/2 rounded bg-black/80 px-3 py-2 text-xs text-white">Loading live registry data...</div>}
-      {(parcelsError || auditError) && <div className="fixed top-4 left-1/2 z-30 -translate-x-1/2 rounded bg-[#B42318] px-3 py-2 text-xs text-white">{parcelsError || auditError}</div>}
+      {parcelsLoading && <div className="fixed top-24 left-1/2 z-50 -translate-x-1/2 rounded bg-black/80 px-3 py-2 text-xs text-white" aria-live="polite">Loading live registry data...</div>}
+      {parcelsError && <div className="fixed top-24 left-1/2 z-50 -translate-x-1/2 rounded bg-[#B42318] px-3 py-2 text-xs text-white shadow-lg" role="alert">{parcelsError}</div>}
       {/* 1. Map Host Canvas Container */}
       <div ref={mapHostRef} className="map-host">
         <Map
@@ -126,6 +125,7 @@ export function ExplorerPage() {
           onParcelHover={setHoverInfo}
           isSatellite={isSatellite}
           isTerrainEnabled={isTerrainEnabled}
+          is3DView={is3DView}
           onMapReady={setMapInstance}
         />
       </div>
@@ -201,7 +201,10 @@ export function ExplorerPage() {
       {/* 6. Floating Map Controls */}
       <MapControls
         isTerrainEnabled={isTerrainEnabled}
-        onToggleTerrain={() => setIsTerrainEnabled((prev) => !prev)}
+        onToggleTerrain={() => {
+          setIsTerrainEnabled((prev) => !prev);
+          setIs3DView((prev) => !prev);
+        }}
         isSatellite={isSatellite}
         onToggleSatellite={() => setIsSatellite((prev) => !prev)}
         onResetView={handleResetView}
@@ -212,6 +215,9 @@ export function ExplorerPage() {
 
       {/* 7. Floating Attribution Chip */}
       <div className="attribution-chip">
+        <button type="button" className="attribution-trigger" aria-label="Map data and terrain sources">
+          <Info className="h-4 w-4" aria-hidden="true" />
+        </button>
         © OpenFreeMap © OpenMapTiles © OpenStreetMap contributors ·
         Sources: Esri, Maxar, Earthstar Geographics, and the GIS User Community ·
         Terrain: AWS Open Data

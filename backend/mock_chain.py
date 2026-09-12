@@ -37,7 +37,7 @@ def _next_block_number() -> int:
 
 
 def register_transfer(ulpin: str, from_owner: str, to_owner: str, doc_hash: str,
-                      ai_verified: bool = True) -> dict:
+                      ai_verified: bool = True, timestamp: str | None = None) -> dict:
     """
     Mimics calling LandRegistry.registerTransfer() on-chain.
 
@@ -56,13 +56,13 @@ def register_transfer(ulpin: str, from_owner: str, to_owner: str, doc_hash: str,
         "ai_verified": ai_verified,
         "tx_hash": tx_hash,
         "block_number": _next_block_number(),
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "timestamp": timestamp or time.strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
     _CHAIN_LOG.append(entry)
     return entry
 
 
-def register_parcel(ulpin: str, owner: str) -> dict:
+def register_parcel(ulpin: str, owner: str, timestamp: str | None = None) -> dict:
     """
     Mimics calling LandRegistry.registerParcel() on-chain — the genesis event
     for a brand-new parcel entering the registry for the first time.
@@ -76,7 +76,7 @@ def register_parcel(ulpin: str, owner: str) -> dict:
         "doc_hash": None,
         "tx_hash": tx_hash,
         "block_number": _next_block_number(),
-        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "timestamp": timestamp or time.strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
     _CHAIN_LOG.append(entry)
     return entry
@@ -156,3 +156,33 @@ def reset():
     _CHAIN_LOG.clear()
     _CERTIFICATE_LOG.clear()
     _CERTIFICATES_BY_PARCEL.clear()
+
+
+def seed_from_properties(properties: dict) -> None:
+    """Hydrate the demo chain from the deed history bundled with each parcel.
+
+    This makes the blockchain explorer useful from the first page load while
+    retaining its append-only behaviour for all subsequent user actions.
+    It is intentionally for mock mode only; a live chain is always seeded by
+    actual submitted transactions.
+    """
+    if _CHAIN_LOG or _CERTIFICATE_LOG:
+        return
+    for ulpin, parcel in properties.items():
+        deeds = parcel.get("transfer_history", [])
+        first = deeds[0] if deeds else {}
+        first_date = first.get("date")
+        register_parcel(
+            ulpin,
+            first.get("to") or parcel.get("current_owner", "Registry owner"),
+            f"{first_date}T00:00:00Z" if first_date else None,
+        )
+        for deed in deeds[1:]:
+            date = deed.get("date")
+            register_transfer(
+                ulpin,
+                deed.get("from", "Prior owner"),
+                deed.get("to", parcel.get("current_owner", "Current owner")),
+                deed.get("doc_hash", ""),
+                timestamp=f"{date}T00:00:00Z" if date else None,
+            )

@@ -6,21 +6,13 @@ import {
   KeyRound,
   CheckCircle2,
   AlertTriangle,
-  RotateCcw,
   Wallet,
   Shield,
   FileCheck
 } from "lucide-react";
 
 export function Account() {
-  const { user, resetDemoData, logout } = useAuth();
-
-  const handleResetData = () => {
-    if (window.confirm("Reset all synthetic demo state back to fixture default? This clears local transfers, tokens, and nonces.")) {
-      resetDemoData();
-      window.location.reload();
-    }
-  };
+  const { user, logout } = useAuth();
 
   return (
     <div className="space-y-6 text-left animate-fade-slide-up">
@@ -31,17 +23,10 @@ export function Account() {
             Citizen Identity & Credential Console
           </h1>
           <p className="mt-1 text-xs text-[#475467]">
-            Official Aadhaar e-KYC profile, permissions, cryptographic wallet, and sandbox demo state controls.
+            Authenticated identity, permissions, and credential status from the registry session.
           </p>
         </div>
 
-        <button
-          onClick={handleResetData}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-[#D0D5DD] bg-white px-4 py-2 text-xs font-semibold text-[#B42318] hover:bg-[#FEF2F2] shadow-sm self-start sm:self-auto"
-        >
-          <RotateCcw className="h-3.5 w-3.5" />
-          <span>Reset Demo Data</span>
-        </button>
       </div>
 
       {/* Identity Card */}

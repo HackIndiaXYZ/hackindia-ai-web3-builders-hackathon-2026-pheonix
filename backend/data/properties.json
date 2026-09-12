@@ -17,7 +17,9 @@
     "area_sqm": 1200,
     "registration_office": "Sub-Registrar Noida-II",
     "last_registered_date": "2022-03-15",
-    "boundary": [[0, 0], [40, 0], [40, 30], [0, 30]],
+    "title_status": "VERIFIED",
+    "risk_status": "LOW_RISK",
+    "boundary": [[77.50085, 28.47185], [77.50135, 28.47185], [77.50135, 28.47222], [77.50085, 28.47222]],
     "transfer_history": [
       {"from": "Government Grant", "to": "Suresh Kumar", "date": "2010-06-01", "doc_hash": "0xaaa1"},
       {"from": "Suresh Kumar", "to": "Rajesh Kumar", "date": "2022-03-15", "doc_hash": "0xaaa2"}
@@ -30,7 +32,9 @@
     "area_sqm": 850,
     "registration_office": "Sub-Registrar Noida-II",
     "last_registered_date": "2021-11-02",
-    "boundary": [[41, 0], [66, 0], [66, 34], [41, 34]],
+    "title_status": "VERIFIED",
+    "risk_status": "LOW_RISK",
+    "boundary": [[77.50205, 28.47182], [77.50248, 28.47182], [77.50248, 28.47217], [77.50205, 28.47217]],
     "transfer_history": [
       {"from": "Government Grant", "to": "Meena Devi", "date": "2021-11-02", "doc_hash": "0xbbb1"}
     ]
@@ -42,6 +46,9 @@
     "area_sqm": 2000,
     "registration_office": "Sub-Registrar Greater Noida",
     "last_registered_date": "2023-01-20",
+    "title_status": "DISPUTED",
+    "risk_status": "HIGH_RISK",
+    "boundary": [[77.50315, 28.47265], [77.50368, 28.47265], [77.50368, 28.47305], [77.50315, 28.47305]],
     "transfer_history": [
       {"from": "Government Grant", "to": "Vikram Sharma", "date": "2005-04-10", "doc_hash": "0xccc1"},
       {"from": "Vikram Sharma", "to": "Anil Sharma", "date": "2023-01-20", "doc_hash": "0xccc2"}
@@ -54,6 +61,9 @@
     "area_sqm": 1500,
     "registration_office": "Sub-Registrar Greater Noida",
     "last_registered_date": "2023-08-10",
+    "title_status": "REVIEW",
+    "risk_status": "HIGH_RISK",
+    "boundary": [[77.50418, 28.47258], [77.50466, 28.47258], [77.50466, 28.47298], [77.50418, 28.47298]],
     "transfer_history": [
       {"from": "Government Grant", "to": "Priya Singh", "date": "2023-08-10", "doc_hash": "0xddd1"}
     ]
@@ -65,6 +75,9 @@
     "area_sqm": 3000,
     "registration_office": "Sub-Registrar Noida-I",
     "last_registered_date": "2020-02-14",
+    "title_status": "VERIFIED_WITH_ENCUMBRANCE",
+    "risk_status": "FLAGGED",
+    "boundary": [[77.50515, 28.47190], [77.50575, 28.47190], [77.50575, 28.47236], [77.50515, 28.47236]],
     "transfer_history": [
       {"from": "Government Grant", "to": "Fatima Khan", "date": "2020-02-14", "doc_hash": "0xeee1"}
     ]
@@ -76,6 +89,9 @@
     "area_sqm": 1000,
     "registration_office": "Sub-Registrar Noida-I",
     "last_registered_date": "2026-08-01",
+    "title_status": "SUCCESSION_PENDING",
+    "risk_status": "FLAGGED",
+    "boundary": [[77.50495, 28.47335], [77.50545, 28.47335], [77.50545, 28.47375], [77.50495, 28.47375]],
     "transfer_history": [
       {"from": "Government Grant", "to": "Older Owner", "date": "2015-01-01", "doc_hash": "0xggg1"},
       {"from": "Older Owner", "to": "Gurpreet Singh", "date": "2026-07-15", "doc_hash": "0xggg2"},
@@ -89,6 +105,9 @@
     "area_sqm": 900,
     "registration_office": "Sub-Registrar Noida-I",
     "last_registered_date": "2026-08-20",
+    "title_status": "FROZEN",
+    "risk_status": "REVIEW",
+    "boundary": [[77.50242, 28.47342], [77.50288, 28.47342], [77.50288, 28.47380], [77.50242, 28.47380]],
     "transfer_history": [
       {"from": "Government Grant", "to": "Ramesh Verma", "date": "2015-05-05", "doc_hash": "0xfff1"},
       {"from": "Ramesh Verma", "to": "Suman Verma", "date": "2026-08-05", "doc_hash": "0xfff2"},

@@ -2,7 +2,8 @@
 
 ## Passed
 
-- Backend focused regression suite: 9 passed.
+- Backend regression suite: 110 passed, 2 skipped.
+- Frontend adapter suite: 3 passed.
 - Python compilation for modified backend modules: passed.
 - Frontend production build: passed with `npm install --legacy-peer-deps`.
 - Live authentication context and API client bundle: built successfully.
@@ -18,6 +19,5 @@
 
 ## Remaining failures/gaps
 
-- A repository-wide search still finds fixture/store consumers in several legacy portal screens; these are documented in `FRONTEND_LIVE_MIGRATION_REPORT.md`.
-- No frontend automated test suite is configured.
+- Remaining fixture references are isolated tooling only; see `FINAL_INTEGRATION_VERIFICATION.md`.
 - Backend identity remains demo-directory based by design; external Aadhaar/OTP and institutional MFA are integration boundaries, not implemented providers.

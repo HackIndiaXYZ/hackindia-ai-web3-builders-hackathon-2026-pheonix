@@ -22,7 +22,7 @@ const MIME_TYPES = {
 const server = http.createServer((req, res) => {
   // Proxy /api requests to Flask backend
   if (req.url.startsWith("/api")) {
-    const backendPort = process.env.BACKEND_PORT || 5001;
+    const backendPort = process.env.BACKEND_PORT || 5000;
     const proxyReq = http.request(
       {
         hostname: "127.0.0.1",

@@ -69,15 +69,13 @@ from v2_registry import V2Registry
 # ------------------------------------------------------------ chain mode ----
 # CHAIN_MODE=mock  (default) -> in-memory simulated chain, always works,
 #                                no network/wallet/gas needed
-# CHAIN_MODE=live            -> real web3.py calls to a deployed LandRegistry
-#                                contract on Polygon Amoy (see chain_client.py
-#                                for the required env vars)
+# CHAIN_MODE=live            -> immutable records on the configured MST Testnet
 #
 # Both modules expose the exact same function names, so nothing else in this
 # file needs to know which one is active.
 CHAIN_MODE = os.environ.get("CHAIN_MODE", "mock").lower()
 if CHAIN_MODE == "live":
-    import chain_client as chain
+    from blockchain import mst_chain_adapter as chain
 else:
     import mock_chain as chain
 
@@ -209,6 +207,9 @@ if config.DATABASE_URL:
 else:
     v2 = V2Registry()
     PROPERTIES = load_properties()
+    # Populate the mock chain with the deed history backing the seeded parcel
+    # catalogue. Live deployments only show confirmed chain events instead.
+    chain.seed_from_properties(PROPERTIES)
 
 
 def require_role(*allowed_roles):

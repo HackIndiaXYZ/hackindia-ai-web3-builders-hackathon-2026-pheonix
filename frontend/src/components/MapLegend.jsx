@@ -16,28 +16,28 @@ export function MapLegend({ activeFilter, onSelectFilter }) {
   const [isExpanded, setIsExpanded] = useState(true);
 
   return (
-    <div className="fixed bottom-6 left-6 z-20 hidden md:block select-none">
-      <div className="rounded-2xl border border-white/10 bg-navy-900/85 shadow-glass backdrop-blur-xl transition-all duration-200 w-64 overflow-hidden">
+    <div className="fixed bottom-6 left-[72px] z-20 hidden md:block select-none">
+      <div className="w-64 overflow-hidden rounded-2xl border border-slate-700/90 bg-[#090d16] shadow-2xl transition-all duration-200">
         {/* Header Toggle */}
         <button
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex w-full items-center justify-between px-3.5 py-2.5 text-xs font-semibold text-slate-300 hover:text-white transition-colors"
+          className="flex w-full items-center justify-between px-3.5 py-2.5 text-xs font-semibold text-slate-100 hover:bg-white/10 hover:text-white transition-colors"
         >
           <div className="flex items-center gap-2">
             <Layers className="h-3.5 w-3.5 text-cyan-400" />
             <span>Title Status Legend</span>
           </div>
           {isExpanded ? (
-            <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+            <ChevronDown className="h-3.5 w-3.5 text-slate-300" />
           ) : (
-            <ChevronUp className="h-3.5 w-3.5 text-slate-400" />
+            <ChevronUp className="h-3.5 w-3.5 text-slate-300" />
           )}
         </button>
 
         {/* Content list */}
         {isExpanded && (
-          <div className="border-t border-white/10 px-3.5 py-2 space-y-1.5">
+          <div className="space-y-1.5 border-t border-slate-700 px-3.5 py-2">
             {LEGEND_ITEMS.map((item) => {
               const isSelected = activeFilter === item.tag;
               return (
@@ -45,7 +45,7 @@ export function MapLegend({ activeFilter, onSelectFilter }) {
                   key={item.label}
                   onClick={() => onSelectFilter && onSelectFilter(isSelected ? null : item.tag)}
                   className={`flex items-center justify-between rounded-lg px-2 py-1 text-xs cursor-pointer transition-colors ${
-                    isSelected ? "bg-white/10 text-white font-medium" : "text-slate-300 hover:bg-white/5"
+                    isSelected ? "bg-[#0B3A67] text-white font-medium" : "text-slate-100 hover:bg-white/10"
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -61,7 +61,7 @@ export function MapLegend({ activeFilter, onSelectFilter }) {
                 </div>
               );
             })}
-            <div className="pt-1 text-[10px] text-slate-400 font-mono text-center">
+            <div className="pt-1 text-center font-mono text-[10px] text-slate-300">
               Extruded height = parcel area (m²)
             </div>
           </div>

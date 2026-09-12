@@ -17,16 +17,12 @@ export const INITIAL_CAMERA = {
   bearing: -15,
 };
 
-/**
- * Disables basemap 3D buildings so only deck.gl parcels extrude in 3D.
- */
-export function disableBaseMap3DBuildings(map) {
+/** Hide only pre-existing extrusion layers; 2D building footprints remain available. */
+export function disableNativeBuildingExtrusions(map) {
   if (!map) return;
   const style = map.getStyle();
   (style?.layers || []).forEach((layer) => {
-    const isExtrusion = layer.type === "fill-extrusion";
-    const looksLikeBuilding = /building|3d/i.test(layer.id);
-    if (isExtrusion || looksLikeBuilding) {
+    if (layer.type === "fill-extrusion" && layer.id !== "titlelock-building-extrusions") {
       try {
         map.setLayoutProperty(layer.id, "visibility", "none");
       } catch (error) {
@@ -37,23 +33,76 @@ export function disableBaseMap3DBuildings(map) {
 }
 
 /**
+ * Turns the Liberty style's native OSM building footprints into visible 3D
+ * buildings.  The source is discovered from the loaded style rather than
+ * hard-coded, so it remains compatible with style updates.
+ */
+export function syncBuildingExtrusions(map, is3DView) {
+  if (!map) return;
+  const layerId = "titlelock-building-extrusions";
+  const nativeExtrusion = (map.getStyle()?.layers || []).find(
+    (layer) =>
+      layer.type === "fill-extrusion" &&
+      layer.id !== layerId &&
+      /building/i.test(`${layer.id} ${layer["source-layer"] || ""}`)
+  );
+  if (nativeExtrusion) {
+    map.setLayoutProperty(nativeExtrusion.id, "visibility", is3DView ? "visible" : "none");
+    return;
+  }
+  if (map.getLayer(layerId)) {
+    map.setLayoutProperty(layerId, "visibility", is3DView ? "visible" : "none");
+    return;
+  }
+
+  const buildingFootprint = (map.getStyle()?.layers || []).find(
+    (layer) =>
+      layer.type === "fill" &&
+      layer.source &&
+      layer["source-layer"] &&
+      /building/i.test(`${layer.id} ${layer["source-layer"]}`)
+  );
+  if (!buildingFootprint) return;
+
+  map.addLayer({
+    id: layerId,
+    type: "fill-extrusion",
+    source: buildingFootprint.source,
+    "source-layer": buildingFootprint["source-layer"],
+    minzoom: buildingFootprint.minzoom ?? 14,
+    layout: { visibility: is3DView ? "visible" : "none" },
+    paint: {
+      "fill-extrusion-color": "#b7c4d4",
+      "fill-extrusion-height": [
+        "coalesce",
+        ["to-number", ["get", "render_height"]],
+        ["to-number", ["get", "height"]],
+        8,
+      ],
+      "fill-extrusion-base": ["coalesce", ["to-number", ["get", "render_min_height"]], 0],
+      "fill-extrusion-opacity": 0.9,
+    },
+  }, getParcelBeforeId(map));
+}
+
+/**
  * Frames all fixture parcels on initial load or view reset.
  */
-export function fitAllParcels(map, parcels) {
+export function fitAllParcels(map, parcels, is3DView = true) {
   if (!map) return;
   const bounds = new maplibregl.LngLatBounds();
   (parcels || []).forEach((p) =>
     (p.boundary || []).forEach(([lng, lat]) => bounds.extend([lng, lat]))
   );
   if (bounds.isEmpty()) {
-    map.jumpTo({ center: [77.504, 28.4744], zoom: 14, pitch: 55, bearing: -15 });
+    map.jumpTo({ center: [77.504, 28.4744], zoom: 14, pitch: is3DView ? 55 : 0, bearing: is3DView ? -15 : 0 });
     return;
   }
   map.fitBounds(bounds, {
     padding: { top: 130, right: 80, bottom: 100, left: 80 },
     maxZoom: 16,
-    pitch: 55,
-    bearing: -15,
+    pitch: is3DView ? 55 : 0,
+    bearing: is3DView ? -15 : 0,
     duration: 0,
   });
 }
@@ -78,6 +127,7 @@ export function Map({
   onParcelHover = () => {},
   isSatellite = false,
   isTerrainEnabled = true,
+  is3DView = true,
   onMapReady = () => {},
 }) {
   const mapContainerRef = useRef(null);
@@ -107,8 +157,9 @@ export function Map({
     const handleMapLoad = (event) => {
       const loadedMap = event.target;
 
-      // Disable basemap 3D buildings BEFORE enabling parcel overlay
-      disableBaseMap3DBuildings(loadedMap);
+      // Ensure the map owns building extrusion rendering.
+      disableNativeBuildingExtrusions(loadedMap);
+      syncBuildingExtrusions(loadedMap, is3DView);
 
       // Frame all fixture parcels
       fitAllParcels(loadedMap, parcels);
@@ -139,7 +190,9 @@ export function Map({
         );
       }
 
-      // Add 3D Terrarium Elevation DEM Source
+      // Add the DEM source for future terrain analysis. It is deliberately not
+      // applied to the camera: terrain elevation changes the visual ground
+      // position beneath the camera and makes a 2D/3D switch look like a pan.
       if (!loadedMap.getSource("terrarium-dem")) {
         loadedMap.addSource("terrarium-dem", {
           type: "raster-dem",
@@ -149,9 +202,6 @@ export function Map({
           encoding: "terrarium",
         });
 
-        if (isTerrainEnabled) {
-          loadedMap.setTerrain({ source: "terrarium-dem", exaggeration: 1.2 });
-        }
       }
 
       // Atmospheric fog
@@ -174,10 +224,6 @@ export function Map({
     };
 
     map.on("load", handleMapLoad);
-
-    map.on("styledata", () => {
-      disableBaseMap3DBuildings(map);
-    });
 
     return () => {
       if (overlayRef.current) {
@@ -241,42 +287,60 @@ export function Map({
 
   // 4. Build parcelLayers with useMemo
   const parcelLayers = useMemo(() => {
-    const selectedId = selectedParcel?.id;
+    const visibleParcels = parcels.filter((parcel) =>
+      Array.isArray(parcel.boundary) &&
+      parcel.boundary.length >= 3 &&
+      parcel.boundary.every((point) =>
+        Array.isArray(point) && point.length >= 2 &&
+        Number.isFinite(Number(point[0])) && Number.isFinite(Number(point[1]))
+      )
+    );
+    const selectedId = selectedParcel?.ulpin || selectedParcel?.id;
     const beforeId = getParcelBeforeId(mapInstanceRef.current);
+    const parcelCenter = (parcel) => {
+      if (parcel.centroid) return [parcel.centroid.lng, parcel.centroid.lat, 42];
+      const points = parcel.boundary || [];
+      if (!points.length) return [0, 0, 0];
+      const [lng, lat] = points.reduce(
+        ([totalLng, totalLat], [pointLng, pointLat]) => [totalLng + pointLng, totalLat + pointLat],
+        [0, 0]
+      );
+      return [lng / points.length, lat / points.length, 42];
+    };
 
     return [
       new PolygonLayer({
         id: "titlelock-parcels",
         beforeId,
-        data: parcels,
+        data: visibleParcels,
         getPolygon: (p) => p.boundary,
-        extruded: true,
+        extruded: is3DView,
         wireframe: true,
         getElevation: (p) =>
           Math.max(8, Math.min(55, Math.sqrt(Number(p.area_sqm || 100)) * 0.45)),
         getFillColor: (p) => {
-          if (p.id === selectedId) return [35, 145, 255, 170];
+          if (p.ulpin === selectedId) return [35, 145, 255, 220];
           switch (p.title_status) {
             case "VERIFIED":
-              return [20, 150, 105, 115];
+              return [16, 185, 129, 190];
             case "REVIEW":
-              return [220, 155, 40, 130];
+              return [245, 158, 11, 205];
             case "DISPUTED":
             case "HIGH_RISK":
-              return [205, 65, 65, 140];
+              return [239, 68, 68, 215];
             case "FROZEN":
-              return [125, 135, 150, 125];
+              return [148, 163, 184, 200];
             case "SUCCESSION_PENDING":
             case "CREDENTIAL_RECOVERY":
-              return [70, 120, 220, 130];
+              return [59, 130, 246, 205];
             default:
-              return [110, 130, 155, 110];
+              return [100, 116, 139, 185];
           }
         },
         getLineColor: (p) =>
-          p.id === selectedId ? [100, 220, 255, 255] : [110, 190, 255, 220],
-        getLineWidth: (p) => (p.id === selectedId ? 5 : 2),
-        lineWidthMinPixels: 1,
+          p.ulpin === selectedId ? [100, 220, 255, 255] : [255, 255, 255, 245],
+        getLineWidth: (p) => (p.ulpin === selectedId ? 5 : 3),
+        lineWidthMinPixels: 2,
         pickable: true,
         autoHighlight: true,
         updateTriggers: {
@@ -295,8 +359,8 @@ export function Map({
       new TextLayer({
         id: "titlelock-ulpin-labels",
         beforeId,
-        data: parcels,
-        getPosition: (p) => [p.centroid.lng, p.centroid.lat, 35],
+        data: visibleParcels,
+        getPosition: parcelCenter,
         getText: (p) => p.ulpin,
         getSize: 11,
         getColor: [235, 245, 255, 230],
@@ -304,7 +368,7 @@ export function Map({
         pickable: false,
       }),
     ];
-  }, [parcels, selectedParcel?.id, mapReady, onSelectParcel, onParcelHover]);
+  }, [parcels, selectedParcel?.id, selectedParcel?.ulpin, is3DView, mapReady, onSelectParcel, onParcelHover]);
 
   // 5. Update deck.gl overlay props
   useEffect(() => {
@@ -325,20 +389,32 @@ export function Map({
     }
   }, [isSatellite, mapReady]);
 
-  // 7. Terrain toggle sync
+  // 7. Change only the camera pitch. Buildings remain fully extruded in 3D,
+  // but elevation terrain is not applied because it shifts the visible ground
+  // after the transition and feels like an unwanted map pan.
   useEffect(() => {
     const map = mapInstanceRef.current;
     if (!map || !mapReady) return;
-    try {
-      if (isTerrainEnabled) {
-        if (map.getSource("terrarium-dem")) {
-          map.setTerrain({ source: "terrarium-dem", exaggeration: 1.2 });
-        }
-      } else {
-        map.setTerrain(null);
-      }
-    } catch {}
-  }, [isTerrainEnabled, mapReady]);
+    const camera = {
+      center: map.getCenter(),
+      zoom: map.getZoom(),
+      bearing: map.getBearing(),
+    };
+    // Explicitly clear terrain in case an earlier map session enabled it.
+    try { map.setTerrain(null); } catch {}
+    map.easeTo({
+      ...camera,
+      pitch: is3DView ? 55 : 0,
+      duration: 350,
+    });
+  }, [isTerrainEnabled, is3DView, mapReady]);
+
+  // Render OpenStreetMap building footprints as extrusions in 3D mode.
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !mapReady) return;
+    syncBuildingExtrusions(map, is3DView);
+  }, [is3DView, mapReady]);
 
   // 8. Smooth flyTo when selected parcel changes
   useEffect(() => {
@@ -385,13 +461,13 @@ export function MapControls({
             ? "bg-[#0B3A67] text-white"
             : "text-slate-400 hover:bg-white/10 hover:text-white"
         }`}
-        title="Toggle 3D Elevation Terrain"
-        aria-label="Toggle 3D Terrain"
+        title={isTerrainEnabled ? "Switch to flat 2D view" : "Switch to 3D terrain view"}
+        aria-label={isTerrainEnabled ? "Switch to flat 2D view" : "Switch to 3D terrain view"}
       >
         <Mountain className="h-4 w-4" />
       </button>
 
-      {/* Satellite / Map */}
+      {/* Satellite / standard map */}
       <button
         onClick={onToggleSatellite}
         className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
@@ -399,8 +475,8 @@ export function MapControls({
             ? "bg-[#0B3A67] text-white"
             : "text-slate-400 hover:bg-white/10 hover:text-white"
         }`}
-        title="Toggle Satellite / Vector Map"
-        aria-label="Toggle Satellite Imagery"
+        title={isSatellite ? "Switch to standard map" : "Switch to satellite view"}
+        aria-label={isSatellite ? "Switch to standard map" : "Switch to satellite view"}
       >
         <Layers className="h-4 w-4" />
       </button>

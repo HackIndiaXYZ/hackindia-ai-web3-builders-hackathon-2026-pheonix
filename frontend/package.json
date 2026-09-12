@@ -3,9 +3,10 @@
   "version": "0.2.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host 127.0.0.1",
     "start": "node serve.js",
-    "build": "esbuild src/main.jsx --bundle --minify --outfile=dist/bundle.js --jsx=automatic --loader:.jsx=jsx --define:process.env.NODE_ENV='\"production\"'",
+    "test": "node --test test/*.test.js",
+    "build": "esbuild src/main.jsx --bundle --minify --outfile=dist/bundle.js --jsx=automatic --loader:.jsx=jsx --define:process.env.NODE_ENV='\"production\"' && tailwindcss -i ./src/index.css -o ./dist/bundle.css --config ./tailwind.config.cjs --minify",
     "watch": "esbuild src/main.jsx --bundle --outfile=dist/bundle.js --jsx=automatic --loader:.jsx=jsx --define:process.env.NODE_ENV='\"development\"' --watch"
   },
   "dependencies": {
@@ -26,6 +27,9 @@
     "vite": "^8.3.0"
   },
   "devDependencies": {
-    "esbuild": "^0.20.0"
+    "autoprefixer": "^10.4.20",
+    "esbuild": "^0.20.0",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.17"
   }
 }
