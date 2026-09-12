@@ -121,7 +121,7 @@ def postgres_repo(postgres_url):
     import migrate
     import psycopg
     import seed_demo_data
-    from postgres_repository import PostgresV2Repository
+    from postgres_v2_repository import PostgresV2Repository
 
     migrate.run(database_url=postgres_url)
 

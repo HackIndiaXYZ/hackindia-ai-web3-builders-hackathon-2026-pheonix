@@ -31,6 +31,7 @@ import uuid
 
 import cache
 import config
+import security_controls
 
 VALID_ROLES = {"REGISTRAR", "OWNER", "NOMINEE", "BUYER", "BANK", "AUDITOR"}
 
@@ -70,10 +71,12 @@ def login(username: str, role: str) -> dict:
     if not role:
         raise ValueError("identity is not provisioned in the demo directory")
     if requested_role and requested_role != role:
+        security_controls.record("ROLE_ESCALATION_ATTEMPT", username, 5)
         raise ValueError("role is assigned by the identity directory and cannot be selected by the client")
 
     token = str(uuid.uuid4())
     session = {"username": username, "role": role}
+    session["csrf_token"] = security_controls.csrf_token(session)
     if cache.enabled():
         # Expiry comes from the store's TTL, so an abandoned session cannot
         # outlive it. The in-process fallback keeps its original
@@ -81,7 +84,7 @@ def login(username: str, role: str) -> dict:
         cache.session_put(_token_key(token), session, config.SESSION_TTL_SECONDS)
     else:
         _SESSIONS[token] = session
-    return {"token": token, **session}
+    return {"token": token, "username": username, "role": role, "csrf_token": session["csrf_token"]}
 
 
 def get_session(token: str):

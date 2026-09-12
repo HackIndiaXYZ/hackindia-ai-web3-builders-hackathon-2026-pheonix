@@ -1,0 +1,14 @@
+{
+  "title": "Land Registry Operations",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "panels": [
+    {"type": "stat", "title": "Outbox Backlog", "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}, "targets": [{"expr": "land_registry_outbox_backlog"}]},
+    {"type": "stat", "title": "Indexer Lag (blocks)", "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0}, "targets": [{"expr": "land_registry_indexer_lag_blocks"}]},
+    {"type": "stat", "title": "Failed Blockchain Transactions", "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0}, "targets": [{"expr": "land_registry_failed_blockchain_transactions"}]},
+    {"type": "stat", "title": "Confirmation Latency (s)", "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0}, "targets": [{"expr": "land_registry_blockchain_confirmation_latency_seconds"}]},
+    {"type": "timeseries", "title": "Registry Totals", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}, "targets": [{"expr": "land_registry_transfers_total"}, {"expr": "land_registry_approvals_total"}, {"expr": "land_registry_successions_total"}, {"expr": "land_registry_recoveries_total"}]},
+    {"type": "timeseries", "title": "Integrity and Notification Failures", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}, "targets": [{"expr": "land_registry_integrity_failures_total"}, {"expr": "land_registry_notification_failures_total"}]}
+  ]
+}

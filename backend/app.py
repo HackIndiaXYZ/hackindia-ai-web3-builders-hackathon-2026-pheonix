@@ -45,7 +45,7 @@ import uuid
 from datetime import datetime, timezone
 from functools import wraps
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, Response, jsonify, request, send_from_directory
 
 import assessment_store
 import auth
@@ -54,12 +54,17 @@ import config
 import fraud_engine
 import gis_check
 import observability
+import metrics
+import security_controls
 import validation
-from v2_registry import V2Registry
 from fraud_engine import FraudEngine
 from risk_report import explain_with_source
 from validation import ValidationError
 from title_history import TitleTimelineService, OwnershipGraphService
+from blockchain.health import BlockchainHealthService
+from title_integrity import TitleIntegrityService
+from parcel_intelligence import ParcelIntelligenceService
+from v2_registry import V2Registry
 
 # ------------------------------------------------------------ chain mode ----
 # CHAIN_MODE=mock  (default) -> in-memory simulated chain, always works,
@@ -86,6 +91,8 @@ app = Flask(__name__, static_folder=None)
 engine = FraudEngine()
 timeline_service = TitleTimelineService()
 ownership_graph_service = OwnershipGraphService()
+title_integrity_service = TitleIntegrityService()
+parcel_intelligence_service = ParcelIntelligenceService()
 
 # Validate at import, not in __main__: under gunicorn __main__ never runs, so
 # a misconfigured production container would otherwise boot happily and fail at
@@ -117,6 +124,14 @@ def basic_security_controls():
     identity_key = request.remote_addr or "unknown"
     if cache.rate_limit_exceeded(identity_key, RATE_LIMIT):
         return jsonify({"error": "rate limit exceeded"}), 429
+
+
+@app.before_request
+def refresh_postgres_projection():
+    """Refresh the read projection so PostgreSQL, not process memory, wins."""
+    global PROPERTIES
+    if config.DATABASE_URL:
+        PROPERTIES = v2.load_properties()
 
 
 @app.after_request
@@ -185,11 +200,15 @@ def load_pending_transfers():
         return json.load(f)
 
 
-# In-memory store, reloaded fresh at startup — fine for a hackathon demo.
-# EXTENSION POINT: swap this for a real PostgreSQL-backed repository layer
-# (see the CTO architecture doc's schema in Section 4/6) once you're past MVP.
-PROPERTIES = load_properties()
-v2 = V2Registry()
+# PostgreSQL is the production authority. V2Registry remains available only
+# when DATABASE_URL is absent, which is the explicit zero-infrastructure demo.
+if config.DATABASE_URL:
+    from postgres_v2_repository import PostgresV2Repository
+    v2 = PostgresV2Repository(config.DATABASE_URL)
+    PROPERTIES = v2.load_properties()
+else:
+    v2 = V2Registry()
+    PROPERTIES = load_properties()
 
 
 def require_role(*allowed_roles):
@@ -206,10 +225,16 @@ def require_role(*allowed_roles):
             if not session:
                 return jsonify({"error": "authentication required"}), 401
             if session["role"] not in allowed_roles:
+                security_controls.record("ROLE_ESCALATION_ATTEMPT", session.get("username", "unknown"), 5)
+                app.logger.warning("role escalation attempt", extra={"security_event": "ROLE_ESCALATION_ATTEMPT", "requested_roles": allowed_roles, "actual_role": session["role"]})
                 return jsonify({
                     "error": f"this action requires one of these roles: {', '.join(allowed_roles)} "
                              f"(you are logged in as {session['role']})"
                 }), 403
+            if request.method in {"POST", "PUT", "PATCH", "DELETE"} and not security_controls.csrf_valid(request, session):
+                security_controls.record("CSRF_FAILURE", session.get("username", "unknown"), 5)
+                app.logger.warning("CSRF validation failed", extra={"security_event": "CSRF_FAILURE"})
+                return jsonify({"error": "CSRF validation failed"}), 403
             request.session = session
             return fn(*args, **kwargs)
         return wrapper
@@ -248,7 +273,7 @@ def assess_transfer_request(req: dict):
 # ---------------------------------------------------------------- config ----
 
 @app.route("/api/config", methods=["GET"])
-def config():
+def app_config():
     """
     Lets the UI display the real chain mode instead of assuming one. The
     TopBar previously hardcoded "mock", which would have quietly lied after a
@@ -263,8 +288,6 @@ def config():
             "high_risk_at_or_above": fraud_engine.HIGH_RISK_THRESHOLD,
         },
     })
-
-
 # ---------------------------------------------------------------- auth ----
 
 @app.route("/api/auth/login", methods=["POST"])
@@ -371,6 +394,54 @@ def get_property(ulpin):
     return jsonify({**v2.enrich_parcel(prop), "onchain_commits": onchain_history})
 
 
+def _mst_client_for_health():
+    if not (config.MST_RPC_URL and config.MST_WALLET_ADDRESS and config.MST_PRIVATE_KEY):
+        return None
+    try:
+        from blockchain.mst_client import MSTClient
+        return MSTClient()
+    except Exception as exc:
+        app.logger.warning("MST client unavailable for health snapshot: %s", exc.__class__.__name__)
+        return None
+
+
+@app.route("/api/ops/blockchain-health", methods=["GET"])
+@require_role("REGISTRAR", "AUDITOR")
+def blockchain_health():
+    snapshot = BlockchainHealthService(config.DATABASE_URL, _mst_client_for_health()).snapshot()
+    return jsonify(snapshot)
+
+
+@app.route("/api/parcels/<ulpin>/integrity", methods=["GET"])
+def parcel_integrity(ulpin):
+    prop = PROPERTIES.get(ulpin)
+    if not prop:
+        return jsonify({"error": "not found"}), 404
+    chain_events = chain.get_history(ulpin)
+    if config.DATABASE_URL:
+        try:
+            import psycopg
+            with psycopg.connect(config.DATABASE_URL) as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT raw_event FROM blockchain_events WHERE parcel_id=%s ORDER BY block_number", (ulpin,))
+                    chain_events = [row[0] for row in cur.fetchall()]
+        except Exception:
+            app.logger.exception("integrity blockchain lookup failed for %s", ulpin)
+    result = title_integrity_service.scan(v2.enrich_parcel(prop), chain_events, v2.list_transfers(), v2.list_audit())
+    app.logger.info("parcel integrity requested", extra={"parcel_id": ulpin, "status": result["status"], "integrity_score": result["integrity_score"]})
+    return jsonify(result)
+
+
+@app.route("/api/parcels/<ulpin>/insights", methods=["GET"])
+def parcel_insights(ulpin):
+    prop = PROPERTIES.get(ulpin)
+    if not prop:
+        return jsonify({"error": "not found"}), 404
+    result = parcel_intelligence_service.build(v2.enrich_parcel(prop), v2.list_audit())
+    app.logger.info("parcel insights requested", extra={"parcel_id": ulpin})
+    return jsonify(result)
+
+
 @app.route("/api/parcels/<ulpin>/timeline", methods=["GET"])
 def parcel_timeline(ulpin):
     prop = PROPERTIES.get(ulpin)
@@ -400,6 +471,17 @@ def registrar_workspace():
                     "credential_recoveries": v2.list_recovery_cases(),
                     "frozen_parcels": [v2.enrich_parcel(p) for p in PROPERTIES.values() if p.get("frozen")],
                     "disputed_parcels": [v2.enrich_parcel(p) for p in PROPERTIES.values() if p.get("disputes")]})
+
+
+@app.route("/api/workspaces/bank", methods=["GET"])
+@require_role("BANK")
+def bank_workspace():
+    reports = []
+    for parcel_id, prop in PROPERTIES.items():
+        integrity = title_integrity_service.scan(v2.enrich_parcel(prop), chain.get_history(parcel_id), v2.list_transfers(), v2.list_audit())
+        reports.append({"parcel_id": parcel_id, "title_health_score": title_health(parcel_id).get_json()["score"], "ownership_verification": "MATCHED", "blockchain_verification": integrity["status"], "integrity_score": integrity["integrity_score"]})
+    app.logger.info("bank workspace generated", extra={"parcel_count": len(reports)})
+    return jsonify({"workspace": "BANK_VERIFICATION", "parcels": reports})
 
 
 @app.route("/api/workspaces/nominee", methods=["GET"])
@@ -447,7 +529,10 @@ def freeze_parcel(ulpin):
     if not prop:
         return jsonify({"error": "not found"}), 404
     prop["frozen"] = bool(validation.require_body(request.get_json(force=True, silent=True)).get("frozen", True))
-    v2.audit(request.session["username"], "PARCEL_FROZEN" if prop["frozen"] else "PARCEL_UNFROZEN", ulpin)
+    if config.DATABASE_URL:
+        v2.freeze_parcel(ulpin, prop["frozen"], request.session["username"])
+    else:
+        v2.audit(request.session["username"], "PARCEL_FROZEN" if prop["frozen"] else "PARCEL_UNFROZEN", ulpin)
     return jsonify({"ulpin": ulpin, "frozen": prop["frozen"]})
 
 
@@ -463,11 +548,40 @@ def submit_transfer():
 @app.route("/api/transfers/<ulpin>/commit", methods=["POST"])
 @require_role("REGISTRAR")
 def commit_transfer(ulpin):
-    return jsonify({
-        "error": "direct blockchain commits are disabled",
-        "message": "Create and approve a V2 transfer, then submit it to the outbox worker.",
-        "workflow_endpoint": "/api/v2/transfers/<transfer_id>/submit",
-    }), 410
+    if config.DATABASE_URL:
+        return jsonify({
+            "error": "direct blockchain commits are disabled",
+            "message": "Create and approve a V2 transfer, then submit it to the outbox worker.",
+            "workflow_endpoint": "/api/v2/transfers/<transfer_id>/submit",
+        }), 410
+
+    # Compatibility-only path for the zero-infrastructure demo. Production
+    # configuration is rejected above, so no deployed API can submit directly.
+    body = validation.require_body(request.get_json(force=True, silent=True))
+    prop = PROPERTIES.get(ulpin)
+    if not prop:
+        return jsonify({"error": "not found"}), 404
+    if prop.get("frozen"):
+        return jsonify({"error": "parcel is frozen; transfers are not permitted"}), 409
+    buyer = validation.require_str(body, "buyer")
+    decision = assessment_store.authorize_commit(
+        assessment_id=body.get("assessment_id"), ulpin=ulpin,
+        buyer=buyer, current_owner=prop["current_owner"],
+        override=bool(body.get("override")), override_reason=body.get("override_reason", ""),
+    )
+    entry = chain.register_transfer(
+        ulpin=ulpin, from_owner=prop["current_owner"], to_owner=buyer,
+        doc_hash=validation.optional_str(body, "doc_hash", default="0x0", max_length=128),
+        ai_verified=decision["ai_verified"],
+    )
+    assessment_store.mark_consumed(body["assessment_id"], entry["tx_hash"])
+    prop["current_owner"] = buyer
+    prop["owners"] = [{"name": buyer, "share_percent": 100, "wallet_address": None, "credential_status": "ACTIVE"}]
+    prop["ownership_type"] = "SOLE"
+    prop["ownership_policy"] = {"required_approvals": 1, "total_owners": 1}
+    prop["transfer_history"].append({"from": entry["from"], "to": entry["to"], "date": entry["timestamp"][:10], "doc_hash": entry["doc_hash"]})
+    prop["last_registered_date"] = entry["timestamp"][:10]
+    return jsonify({"committed": True, "onchain_entry": entry, "committed_by": request.session["username"], "ai_verified": decision["ai_verified"], "override_reason": decision["override_reason"] or None})
 
 
 # V2 workflow endpoints -----------------------------------------------------
@@ -511,8 +625,14 @@ def approve_v2_transfer(transfer_id):
     except KeyError as e:
         return jsonify({"error": str(e)}), 404
     except PermissionError as e:
+        exceeded, _ = security_controls.record("APPROVAL_ABUSE", request.session["username"], 5)
+        if exceeded:
+            return jsonify({"error": "too many failed approval attempts"}), 429
         return jsonify({"error": str(e)}), 403
     except ValueError as e:
+        exceeded, _ = security_controls.record("APPROVAL_ABUSE", request.session["username"], 5)
+        if exceeded:
+            return jsonify({"error": "too many failed approval attempts"}), 429
         return jsonify({"error": str(e)}), 409
     return jsonify(transfer)
 
@@ -537,6 +657,7 @@ def process_v2_outbox_once():
     the configured adapter guarantees finality."""
     item = v2.next_outbox_item("SUBMITTED")
     if not item:
+        app.logger.info("outbox worker found no submitted items")
         return None
     transfer = v2.get_transfer(item["transfer_id"])
     if not transfer:
@@ -546,6 +667,7 @@ def process_v2_outbox_once():
         failed = v2.fail_transfer(transfer["transfer_id"], "parcel unavailable or frozen")
         return {"transfer": failed, "error": "parcel unavailable or frozen"}
     try:
+        app.logger.info("outbox worker submitting transfer", extra={"transfer_id": transfer["transfer_id"], "parcel_id": transfer["parcel_id"]})
         if config.MST_RPC_URL and config.MST_WALLET_ADDRESS and config.MST_PRIVATE_KEY:
             from blockchain.mst_client import MSTClient
             mst = MSTClient()
@@ -585,6 +707,7 @@ def process_v2_outbox_once():
         v2.confirm_commit(transfer["transfer_id"], entry["tx_hash"], "outbox-worker")
         # The worker advances only after the adapter has verified finality.
         completed = v2.confirm_finality(transfer["transfer_id"], "outbox-worker")
+        app.logger.info("outbox worker completed transfer", extra={"transfer_id": transfer["transfer_id"], "tx_hash": entry["tx_hash"]})
         prop.update({"current_owner": transfer["buyer"], "owners": [{"name": transfer["buyer"], "share_percent": 100, "wallet_address": None, "credential_status": "ACTIVE"}], "ownership_type": "SOLE", "ownership_policy": {"required_approvals": 1, "total_owners": 1}, "last_registered_date": entry["timestamp"][:10]})
         prop["transfer_history"].append({"from": entry["from"], "to": entry["to"], "date": entry["timestamp"][:10], "doc_hash": entry["doc_hash"]})
         return {"transfer": completed, "onchain_entry": entry}
@@ -603,6 +726,29 @@ def process_v2_outbox_once():
 @require_role("REGISTRAR", "AUDITOR")
 def audit_events():
     return jsonify(v2.list_audit(newest_first=True))
+
+
+@app.route("/metrics", methods=["GET"])
+def prometheus_metrics():
+    return Response(metrics.render(config.DATABASE_URL), mimetype="text/plain; version=0.0.4")
+
+
+@app.route("/api/audit/search", methods=["GET"])
+@require_role("AUDITOR", "REGISTRAR")
+def audit_search():
+    query = (request.args.get("q") or "").strip().lower()
+    action = (request.args.get("action") or "").strip().upper()
+    result_filter = (request.args.get("result") or "").strip().upper()
+    parcel_id = (request.args.get("parcel_id") or "").strip()
+    events = v2.list_audit(newest_first=True)
+    events = [event for event in events if (not query or query in str(event).lower()) and (not action or event.get("action") == action) and (not result_filter or event.get("result") == result_filter) and (not parcel_id or event.get("parcel_id") == parcel_id)]
+    app.logger.info("audit search completed", extra={"result_count": len(events), "has_query": bool(query)})
+    if request.args.get("format") == "csv":
+        from flask import Response
+        columns = ["event_id", "actor", "action", "parcel_id", "transfer_id", "result", "timestamp"]
+        rows = [",".join('"' + str(event.get(column, "")).replace('"', '""') + '"' for column in columns) for event in events]
+        return Response(",".join(columns) + "\n" + "\n".join(rows), mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=audit-events.csv"})
+    return jsonify({"events": events, "count": len(events)})
 
 
 @app.route("/api/wallets/challenge", methods=["POST"])
@@ -684,6 +830,10 @@ def request_credential_recovery():
     parcel_id = validation.require_str(body, "parcel_id", max_length=64)
     if parcel_id not in PROPERTIES:
         return jsonify({"error": "not found"}), 404
+    exceeded, _ = security_controls.record("RECOVERY_REQUEST", request.session["username"], 3)
+    if exceeded:
+        app.logger.warning("credential recovery abuse detected", extra={"security_event": "RECOVERY_ABUSE"})
+        return jsonify({"error": "too many recovery attempts"}), 429
     try:
         return jsonify(v2.request_recovery(request.session["username"], parcel_id, request.session["username"])), 201
     except ValueError as e:
@@ -699,6 +849,7 @@ def approve_credential_recovery(recovery_id):
     except KeyError as e:
         return jsonify({"error": str(e)}), 404
     except ValueError as e:
+        security_controls.record("RECOVERY_APPROVAL_FAILURE", request.session["username"], 5)
         return jsonify({"error": str(e)}), 409
     return jsonify(case)
 

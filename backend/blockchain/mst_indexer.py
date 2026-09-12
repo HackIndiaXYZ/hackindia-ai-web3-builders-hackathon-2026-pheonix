@@ -1,9 +1,12 @@
 """Replayable MST-to-PostgreSQL event indexer."""
 
 import json
+import logging
 import os
 
 from .mst_client import MSTClient
+
+log = logging.getLogger(__name__)
 
 
 class MSTIndexer:
@@ -23,6 +26,7 @@ class MSTIndexer:
 
     def replay(self, from_block=None, to_block="latest"):
         """Index all title records from a checkpoint, or an explicit block range."""
+        log.info("MST indexer replay started", extra={"worker_id": self.worker_id, "from_block": from_block, "to_block": to_block})
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -65,4 +69,5 @@ class MSTIndexer:
                     (self.worker_id, max(highest, start - 1)),
                 )
             conn.commit()
+        log.info("MST indexer replay completed", extra={"worker_id": self.worker_id, "event_count": len(events), "last_block": max(highest, start - 1)})
         return len(events)

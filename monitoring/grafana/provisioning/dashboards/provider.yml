@@ -1,0 +1,10 @@
+apiVersion: 1
+providers:
+  - name: land-registry
+    orgId: 1
+    folder: Land Registry
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

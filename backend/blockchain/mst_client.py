@@ -8,8 +8,11 @@ hashes only; PostgreSQL remains the operational source of ownership data.
 
 import hashlib
 import json
+import logging
 import os
 from datetime import datetime, timezone
+
+log = logging.getLogger(__name__)
 
 
 EVENT_TYPES = {
@@ -66,7 +69,9 @@ class MSTClient:
             raise RuntimeError("MST_WALLET_ADDRESS does not match MST_PRIVATE_KEY")
 
     def connect(self):
-        return self._sdk.provider.get_block_number()
+        block = self._sdk.provider.get_block_number()
+        log.info("MST connectivity check succeeded", extra={"chain_id": self.chain_id, "latest_block": block})
+        return block
 
     def _record_payload(self, payload):
         event_type = payload.get("event_type")
@@ -101,6 +106,7 @@ class MSTClient:
         transaction["gas"] = self._sdk.provider.estimate_gas(transaction)
         transaction.pop("from")
         tx_hash = _tx_hash(self._sdk.signer.send_transaction(transaction))
+        log.info("MST immutable event submitted", extra={"tx_hash": tx_hash, "event_type": record["event_type"], "parcel_id": record["parcel_id"]})
         return {"tx_hash": tx_hash, "record": record}
 
     def query_transaction(self, tx_hash):
@@ -116,12 +122,14 @@ class MSTClient:
         receipt = self._sdk.provider.wait_for_transaction(_tx_hash(tx_hash))
         latest = self._sdk.provider.get_block_number()
         block_number = int(receipt["blockNumber"])
-        return {
+        result = {
             "confirmed": receipt["status"] == 1 and latest - block_number + 1 >= confirmations,
             "confirmation_status": "CONFIRMED" if receipt["status"] == 1 else "FAILED",
             "block_number": block_number,
             "confirmations": max(0, latest - block_number + 1),
         }
+        log.info("MST transaction confirmation checked", extra={"tx_hash": _tx_hash(tx_hash), "confirmed": result["confirmed"], "block_number": block_number, "confirmations": result["confirmations"]})
+        return result
 
     def get_events(self, parcel_id=None, from_block=0, to_block="latest"):
         latest = self._sdk.provider.get_block_number() if to_block == "latest" else to_block

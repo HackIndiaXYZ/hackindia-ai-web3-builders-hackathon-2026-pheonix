@@ -22,7 +22,21 @@ class TitleTimelineService:
                               "seller": ", ".join(transfer["sellers"]), "buyer": transfer["buyer"], "share_percent": 100,
                               "timestamp": transfer.get("confirmed_at") or transfer["created_at"], "document_hash": transfer["document_hash"],
                               "assessment_hash": transfer["assessment_hash"], "registrar": (transfer.get("registrar_approval") or {}).get("actor"),
-                              "blockchain_tx": transfer.get("blockchain_tx")})
+                              "approval_chain": transfer.get("approvals", []), "documents": [transfer["document_hash"]],
+                              "blockchain_tx": transfer.get("blockchain_tx"), "block_number": transfer.get("block_number"),
+                              "confirmation_status": transfer.get("confirmation_status")})
+        for event in audit_events:
+            if event.get("parcel_id") == parcel["ulpin"]:
+                items.append({"source": "AUDIT", "event_type": event.get("action", "REGISTRAR_ACTION"),
+                              "transfer_id": event.get("transfer_id"), "seller": None, "buyer": None,
+                              "share_percent": None, "timestamp": event.get("timestamp"),
+                              "document_hash": None, "assessment_hash": None,
+                              "registrar": event.get("actor"), "actor": event.get("actor"),
+                              "approval_chain": event.get("detail", {}).get("approvals", []),
+                              "documents": event.get("detail", {}).get("documents", []),
+                              "blockchain_tx": event.get("detail", {}).get("tx_hash"),
+                              "block_number": event.get("detail", {}).get("block_number"),
+                              "confirmation_status": event.get("detail", {}).get("confirmation_status")})
         for event in chain_events:
             items.append({"source": "BLOCKCHAIN_NATIVE", "event_type": event["event_type"], "transfer_id": None,
                           "seller": event.get("from"), "buyer": event.get("to"), "share_percent": None,
