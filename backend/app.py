@@ -512,11 +512,23 @@ def frontend_asset(filename):
 
 
 if __name__ == "__main__":
+    import socket
+
     bundle = os.path.join(FRONTEND_DIR, "dist", "bundle.js")
     if not os.path.exists(bundle):
         print("\n  WARNING: frontend/dist/bundle.js is missing.")
         print("  Build it with:  cd frontend && npm install && npm run build\n")
     print(f"  Chain mode: {CHAIN_MODE}")
     print(f"  LLM explanations: {'on' if os.environ.get('ANTHROPIC_API_KEY') else 'off (template mode)'}")
-    print("  Open http://localhost:5000\n")
-    app.run(debug=False, port=5000)
+
+    port = int(os.environ.get("PORT", 5000))
+    if "PORT" not in os.environ:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(("0.0.0.0", port))
+        except OSError:
+            print(f"  Port {port} is unavailable (e.g. macOS AirPlay Receiver). Switching to port 5001.")
+            port = 5001
+
+    print(f"  Open http://localhost:{port}\n")
+    app.run(debug=False, port=port)

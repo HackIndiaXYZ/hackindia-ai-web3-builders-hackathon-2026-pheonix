@@ -223,13 +223,6 @@ def authorize_commit(assessment_id, ulpin: str, buyer: str, current_owner: str,
             "exactly one transfer.",
             409,
         )
-    if entry["seller"] != current_owner:
-        raise CommitNotAuthorized(
-            f"stale assessment — it was run against seller '{entry['seller']}', "
-            f"but the parcel's registered owner is now '{current_owner}'. The "
-            f"parcel changed hands since this check; re-run it.",
-            409,
-        )
     if is_expired(entry):
         raise CommitNotAuthorized(
             f"this assessment expired (valid for {ASSESSMENT_TTL_MINUTES} "
@@ -254,6 +247,14 @@ def authorize_commit(assessment_id, ulpin: str, buyer: str, current_owner: str,
                 "assessment — the justification is part of the audit record.",
                 400,
             )
+
+    if not override and entry["seller"] != current_owner:
+        raise CommitNotAuthorized(
+            f"stale assessment — it was run against seller '{entry['seller']}', "
+            f"but the parcel's registered owner is now '{current_owner}'. The "
+            f"parcel changed hands since this check; re-run it.",
+            409,
+        )
 
     # `aiVerified` on the contract means "the fraud engine cleared this."
     # Only a clean auto-approval earns True. A FLAGGED transfer that a

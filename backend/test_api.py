@@ -479,6 +479,7 @@ def test_block_numbers_are_unique_across_event_types(client, registrar_token):
     collision between a transfer and a certificate would scramble the feed."""
     client.post("/api/properties", json={
         "ulpin": "UP-0120-C", "owner": "Rajesh Kumar", "area_sqm": 1000,
+        "registered_date": "2026-09-01",
     }, headers=auth_header(registrar_token))
     assessment_id = _assess(client, ulpin="UP-0120-C", claimed_area_sqm=1000).get_json()["assessment_id"]
     client.post("/api/transfers/UP-0120-C/commit",
