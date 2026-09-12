@@ -19,6 +19,9 @@ pytest==8.3.4
 # mock-mode demo remains usable without a database service.
 psycopg[binary]>=3.2.10,<4
 
+# MST Testnet provider and signer.
+mst-sdk-python==1.0.1
+
 # Shared sessions, rate limiting and lookup caches. Also imported lazily —
 # without REDIS_URL the app falls back to process-local state.
 redis==5.2.1

@@ -27,7 +27,9 @@ class TitleTimelineService:
             items.append({"source": "BLOCKCHAIN_NATIVE", "event_type": event["event_type"], "transfer_id": None,
                           "seller": event.get("from"), "buyer": event.get("to"), "share_percent": None,
                           "timestamp": event.get("timestamp"), "document_hash": event.get("doc_hash"), "assessment_hash": None,
-                          "registrar": None, "blockchain_tx": event.get("tx_hash")})
+                          "registrar": None, "blockchain_tx": event.get("tx_hash"),
+                          "block_number": event.get("block_number"),
+                          "confirmation_status": event.get("confirmation_status", "CONFIRMED")})
         # ISO dates and YYYY-MM-DD both sort chronologically as strings.
         return sorted(items, key=lambda item: item.get("timestamp") or "", reverse=True)
 

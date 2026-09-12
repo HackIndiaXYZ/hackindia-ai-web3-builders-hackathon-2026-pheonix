@@ -37,8 +37,8 @@ os.environ.pop("REDIS_URL", None)
 TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "")
 
 
-def pytest_configure(cfg):
-    cfg.addinivalue_line(
+def pytest_configure(config):
+    config.addinivalue_line(
         "markers",
         "postgres: requires a live PostgreSQL+PostGIS database (set TEST_DATABASE_URL)",
     )

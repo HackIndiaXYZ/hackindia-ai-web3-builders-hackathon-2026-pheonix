@@ -60,6 +60,10 @@ ALLOWED_ORIGIN = _text("ALLOWED_ORIGIN")
 
 # ------------------------------------------------------------------ chain ----
 CHAIN_MODE = _text("CHAIN_MODE", "mock").lower()
+MST_RPC_URL = _text("MST_RPC_URL")
+MST_CHAIN_ID = _number("MST_CHAIN_ID", 91562037)
+MST_WALLET_ADDRESS = _text("MST_WALLET_ADDRESS")
+MST_PRIVATE_KEY = _text("MST_PRIVATE_KEY")
 
 # ----------------------------------------------------------------- worker ----
 OUTBOX_POLL_INTERVAL = _number("OUTBOX_POLL_INTERVAL", 5)
@@ -96,6 +100,14 @@ def validate():
 
     if CHAIN_MODE not in {"mock", "live"}:
         problems.append(f"CHAIN_MODE must be 'mock' or 'live', got {CHAIN_MODE!r}")
+
+    mst_values = (MST_RPC_URL, MST_WALLET_ADDRESS, MST_PRIVATE_KEY)
+    if any(mst_values) and not all(mst_values):
+        problems.append(
+            "MST_RPC_URL, MST_WALLET_ADDRESS and MST_PRIVATE_KEY must be set together"
+        )
+    if MST_CHAIN_ID <= 0:
+        problems.append("MST_CHAIN_ID must be greater than 0")
 
     if SESSION_TTL_SECONDS <= 0:
         problems.append("SESSION_TTL_SECONDS must be greater than 0")
@@ -136,6 +148,7 @@ def summary():
         "persistence": PERSISTENCE,
         "cache": CACHE,
         "chain_mode": CHAIN_MODE,
+        "mst_chain_id": MST_CHAIN_ID,
         "rate_limit_per_minute": RATE_LIMIT_PER_MINUTE,
         "session_ttl_seconds": SESSION_TTL_SECONDS,
         "outbox_poll_interval": OUTBOX_POLL_INTERVAL,

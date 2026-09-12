@@ -463,62 +463,11 @@ def submit_transfer():
 @app.route("/api/transfers/<ulpin>/commit", methods=["POST"])
 @require_role("REGISTRAR")
 def commit_transfer(ulpin):
-    """
-    Commits a transfer on-chain (mock or live, depending on CHAIN_MODE).
-
-    Requires the `assessment_id` from a prior /api/transfers call. The fraud
-    verdict is enforced here rather than in the UI: a HIGH_RISK transfer is
-    refused unless a registrar sends an explicit override plus a written
-    reason, and in that case the contract records aiVerified=false so the
-    override is permanently visible in the event log.
-    """
-    body = validation.require_body(request.get_json(force=True, silent=True))
-    prop = PROPERTIES.get(ulpin)
-    if not prop:
-        return jsonify({"error": "not found"}), 404
-    if prop.get("frozen"):
-        return jsonify({"error": "parcel is frozen; transfers are not permitted"}), 409
-
-    buyer = validation.require_str(body, "buyer")
-    decision = assessment_store.authorize_commit(
-        assessment_id=body.get("assessment_id"),
-        ulpin=ulpin,
-        buyer=buyer,
-        current_owner=prop["current_owner"],
-        override=bool(body.get("override")),
-        override_reason=body.get("override_reason", ""),
-    )
-
-    entry = chain.register_transfer(
-        ulpin=ulpin,
-        from_owner=prop["current_owner"],
-        to_owner=buyer,
-        doc_hash=validation.optional_str(body, "doc_hash", default="0x0", max_length=128),
-        ai_verified=decision["ai_verified"],
-    )
-    assessment_store.mark_consumed(body["assessment_id"], entry["tx_hash"])
-
-    prop["current_owner"] = buyer
-    # Keep the legacy field and the V2 ownership projection in sync.  A
-    # dedicated V2 workflow below handles joint ownership; this compatibility
-    # path remains for the original fraud-engine demo.
-    prop["owners"] = [{"name": buyer, "share_percent": 100, "wallet_address": None,
-                       "credential_status": "ACTIVE"}]
-    prop["ownership_type"] = "SOLE"
-    prop["ownership_policy"] = {"required_approvals": 1, "total_owners": 1}
-    prop["transfer_history"].append({
-        "from": entry["from"], "to": entry["to"],
-        "date": entry["timestamp"][:10], "doc_hash": entry["doc_hash"],
-    })
-    prop["last_registered_date"] = entry["timestamp"][:10]
-
     return jsonify({
-        "committed": True,
-        "onchain_entry": entry,
-        "committed_by": request.session["username"],
-        "ai_verified": decision["ai_verified"],
-        "override_reason": decision["override_reason"] or None,
-    })
+        "error": "direct blockchain commits are disabled",
+        "message": "Create and approve a V2 transfer, then submit it to the outbox worker.",
+        "workflow_endpoint": "/api/v2/transfers/<transfer_id>/submit",
+    }), 410
 
 
 # V2 workflow endpoints -----------------------------------------------------
@@ -597,9 +546,44 @@ def process_v2_outbox_once():
         failed = v2.fail_transfer(transfer["transfer_id"], "parcel unavailable or frozen")
         return {"transfer": failed, "error": "parcel unavailable or frozen"}
     try:
-        entry = chain.register_transfer(transfer["parcel_id"], prop["current_owner"], transfer["buyer"], transfer["document_hash"], ai_verified=False)
+        if config.MST_RPC_URL and config.MST_WALLET_ADDRESS and config.MST_PRIVATE_KEY:
+            from blockchain.mst_client import MSTClient
+            mst = MSTClient()
+            submitted = mst.submit_event({
+                "event_type": "OWNERSHIP_TRANSFERRED",
+                "transfer_id": transfer["transfer_id"],
+                "parcel_id": transfer["parcel_id"],
+                "previous_owner": prop["current_owner"],
+                "new_owner": transfer["buyer"],
+                "ownership_shares": [{"share_bps": 10000}],
+                "registrar_id": (transfer.get("registrar_approval") or {}).get("actor", "outbox-worker"),
+                "approval_hash": transfer["assessment_hash"],
+                "document_hashes": [transfer["document_hash"]],
+            })
+            confirmation = mst.verify_confirmation(submitted["tx_hash"], confirmations=1)
+            if not confirmation["confirmed"]:
+                raise RuntimeError("MST transaction was submitted but is not confirmed")
+            entry = {
+                "event_type": "OWNERSHIP_TRANSFERRED",
+                "ulpin": transfer["parcel_id"],
+                "from": prop["current_owner"],
+                "to": transfer["buyer"],
+                "doc_hash": transfer["document_hash"],
+                "tx_hash": submitted["tx_hash"],
+                "block_number": confirmation["block_number"],
+                "timestamp": transfer.get("created_at", datetime.now(timezone.utc).isoformat()),
+                "confirmation_status": confirmation["confirmation_status"],
+            }
+            if config.DATABASE_URL:
+                from blockchain.mst_indexer import MSTIndexer
+                MSTIndexer(client=mst).replay(
+                    from_block=confirmation["block_number"],
+                    to_block=confirmation["block_number"],
+                )
+        else:
+            entry = chain.register_transfer(transfer["parcel_id"], prop["current_owner"], transfer["buyer"], transfer["document_hash"], ai_verified=False)
         v2.confirm_commit(transfer["transfer_id"], entry["tx_hash"], "outbox-worker")
-        # mock_chain and chain_client both return confirmed receipts here.
+        # The worker advances only after the adapter has verified finality.
         completed = v2.confirm_finality(transfer["transfer_id"], "outbox-worker")
         prop.update({"current_owner": transfer["buyer"], "owners": [{"name": transfer["buyer"], "share_percent": 100, "wallet_address": None, "credential_status": "ACTIVE"}], "ownership_type": "SOLE", "ownership_policy": {"required_approvals": 1, "total_owners": 1}, "last_registered_date": entry["timestamp"][:10]})
         prop["transfer_history"].append({"from": entry["from"], "to": entry["to"], "date": entry["timestamp"][:10], "doc_hash": entry["doc_hash"]})
@@ -771,12 +755,41 @@ def public_verification(ulpin):
     if not prop:
         return jsonify({"error": "not found"}), 404
     onchain = chain.get_history(ulpin)
+    mst_events = []
+    if config.DATABASE_URL:
+        try:
+            import psycopg
+            with psycopg.connect(config.DATABASE_URL) as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT tx_hash, block_number, event_name, raw_event "
+                        "FROM blockchain_events WHERE parcel_id=%s ORDER BY block_number DESC",
+                        (ulpin,),
+                    )
+                    mst_events = [
+                        {"tx_hash": row[0], "block_number": row[1],
+                         "event_type": row[2], **(row[3] or {})}
+                        for row in cur.fetchall()
+                    ]
+        except Exception:
+            app.logger.exception("MST verification lookup failed for %s", ulpin)
+    latest_mst = mst_events[0] if mst_events else None
+    verification = "MISSING_ON_CHAIN"
+    if latest_mst:
+        expected = hashlib.sha256(prop["current_owner"].strip().lower().encode("utf-8")).hexdigest()
+        verification = "MATCHED" if latest_mst.get("new_owner_hash") == expected else "MISMATCH"
     health = title_health(ulpin).get_json()
     return jsonify({"verification_id": "LV-" + ulpin[-8:].replace("-", "").upper(), "ulpin": ulpin,
                     "title_status": "FROZEN" if prop.get("frozen") else "VERIFIED",
                     "ownership_history_events": len(prop.get("transfer_history", [])),
                     "latest_transfer": prop.get("last_registered_date"), "title_health": health["score"],
-                    "blockchain_record": "VERIFIED" if onchain else "NOT_YET_ANCHORED"})
+                    "blockchain_record": "VERIFIED" if onchain else "NOT_YET_ANCHORED",
+                    "mst_verification": verification,
+                    "mst_transaction": {
+                        "tx_hash": latest_mst.get("tx_hash"),
+                        "block_number": latest_mst.get("block_number"),
+                        "confirmation_status": "CONFIRMED",
+                    } if latest_mst else None})
 
 
 @app.route("/api/documents/upload", methods=["POST"])
