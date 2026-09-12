@@ -3,60 +3,239 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Parcel Register — Land Title Verification Portal</title>
+<title>TitleLock — Department of Land Records | Government of India</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" rel="stylesheet" />
 
-<!--
-  Tailwind via the official Play CDN — zero build step for CSS, matching
-  this project's zero-build-step philosophy for JS (esbuild bundles the
-  actual app code; Tailwind's JIT compiler runs client-side against the
-  rendered class names). This needs real internet access in the browser
-  that loads this page — it could not be verified inside the sandboxed
-  environment this project was built in (see README), but it's the same
-  officially-documented pattern Tailwind ships for exactly this use case.
-
-  If you'd rather have a proper compiled Tailwind build (smaller payload,
-  no client-side JIT cost), swap this for the Tailwind CLI — the utility
-  classes used throughout src/ don't change either way.
--->
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = {
-    darkMode: "class",
     theme: {
       extend: {
         colors: {
-          base: { 950: "#0a0b0d", 900: "#111318", 800: "#1a1d24", 700: "#252932" },
-          accent: { DEFAULT: "#FF6A00", dim: "#FF6A0026", hover: "#FF7F1F" },
-          risk: { approved: "#3DDC97", flagged: "#FFB020", high: "#FF4D4D" },
+          page: "#F7F9FC",
+          surface: "#FFFFFF",
+          border: "#D0D5DD",
+          text: {
+            primary: "#101828",
+            secondary: "#344054",
+            muted: "#667085",
+          },
+          gov: {
+            primary: "#0B3A67",
+            hover: "#1769AA",
+            saffron: "#FF9933",
+            white: "#FFFFFF",
+            green: "#138808",
+            navy: "#000080",
+          },
+          semantic: {
+            success: "#0F766E",
+            warning: "#B54708",
+            danger: "#B42318",
+          }
         },
         fontFamily: {
-          sans: ["Inter", "system-ui", "sans-serif"],
-          mono: ["IBM Plex Mono", "monospace"],
+          sans: ["Inter", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
+          mono: ["JetBrains Mono", "monospace"],
         },
         boxShadow: {
-          glow: "0 0 0 1px #FF6A0033, 0 0 24px 0 #FF6A0022",
-          "glow-sm": "0 0 0 1px #FF6A0033, 0 0 12px 0 #FF6A0022",
+          card: "0 1px 2px rgba(16, 24, 40, 0.06)",
+          "card-hover": "0 4px 12px rgba(16, 24, 40, 0.08)",
         },
-        keyframes: {
-          pulseGlow: { "0%,100%": { opacity: 1 }, "50%": { opacity: 0.4 } },
-        },
-        animation: { "pulse-glow": "pulseGlow 2s ease-in-out infinite" },
+        borderRadius: {
+          card: "8px",
+          input: "6px",
+          pill: "999px",
+        }
       },
     },
   };
 </script>
 
 <style>
-  body { background: #0a0b0d; font-family: 'Inter', system-ui, sans-serif; }
-</style>
+  * {
+    box-sizing: border-box;
+  }
+  html, body, #root {
+    width: 100%;
+    height: 100%;
+    min-height: 100%;
+    margin: 0;
+  }
+  body.public-map-page {
+    overflow: hidden;
+  }
+
+  .public-shell {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    width: 100vw;
+    height: 100dvh;
+    min-height: 100vh;
+    background: #05070b;
+  }
+  .map-host {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .map-host .maplibregl-map,
+  .map-host .maplibregl-canvas-container,
+  .map-host .maplibregl-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100% !important;
+    height: 100% !important;
+  }
+  .maplibregl-canvas {
+    display: block;
+  }
+
+  .public-navbar {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    z-index: 30;
+  }
+  @media (min-width: 640px) {
+    .public-navbar {
+      top: 20px;
+      left: 20px;
+      right: 20px;
+    }
+  }
+  @media (min-width: 1024px) {
+    .public-navbar {
+      top: 28px;
+      left: 32px;
+      right: 32px;
+    }
+  }
+
+  .map-controls {
+    position: absolute;
+    right: 12px;
+    bottom: calc(20px + env(safe-area-inset-bottom));
+    z-index: 25;
+  }
+  @media (min-width: 640px) {
+    .map-controls {
+      right: 24px;
+      bottom: calc(64px + env(safe-area-inset-bottom));
+    }
+  }
+
+  .parcel-drawer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: auto;
+    width: 100% !important;
+    max-height: 82vh;
+    z-index: 35;
+    border-radius: 16px 16px 0 0 !important;
+  }
+  @media (min-width: 640px) {
+    .parcel-drawer {
+      top: 24px;
+      bottom: 24px;
+      right: 24px;
+      left: auto;
+      width: 440px !important;
+      max-height: none;
+      border-radius: 8px !important;
+    }
+  }
+  .attribution-chip {
+    position: absolute;
+    left: 16px;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    z-index: 30;
+    max-width: min(720px, calc(100vw - 32px));
+    padding: 8px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.92);
+    color: #344054;
+    font-size: 11px;
+    line-height: 1.4;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background: #F7F9FC;
+    color: #101828;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* Accessible 2px Focus Ring */
+  a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+    outline: 2px solid #1769AA !important;
+    outline-offset: 2px !important;
+  }
+
+  /* Clean minimal scrollbars */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #F2F4F7;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #D0D5DD;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #98A2B3;
+  }
+
+  /* MapLibre controls clean government styling */
+  .maplibregl-ctrl-attrib {
+    background-color: rgba(255, 255, 255, 0.9) !important;
+    color: #475467 !important;
+    font-size: 11px !important;
+    border-radius: 4px !important;
+    border: 1px solid #D0D5DD !important;
+    padding: 2px 6px !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, ::before, ::after {
+      animation-delay: -1ms !important;
+      animation-duration: 1ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 0s !important;
+      transition-delay: 0s !important;
+    }
+  }
+  </style>
+  <link rel="stylesheet" href="/dist/bundle.css" />
 </head>
 <body>
 
 <div id="root"></div>
 
-<script src="dist/bundle.js"></script>
+<script src="/dist/bundle.js"></script>
 
 </body>
 </html>

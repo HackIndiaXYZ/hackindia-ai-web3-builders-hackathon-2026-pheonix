@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TitleLock — Department of Land Records | Government of India</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css" rel="stylesheet" />
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          page: "#F7F9FC",
+          surface: "#FFFFFF",
+          border: "#D0D5DD",
+          text: {
+            primary: "#101828",
+            secondary: "#344054",
+            muted: "#667085",
+          },
+          gov: {
+            primary: "#0B3A67",
+            hover: "#1769AA",
+            saffron: "#FF9933",
+            white: "#FFFFFF",
+            green: "#138808",
+            navy: "#000080",
+          },
+          semantic: {
+            success: "#0F766E",
+            warning: "#B54708",
+            danger: "#B42318",
+          }
+        },
+        fontFamily: {
+          sans: ["Inter", "-apple-system", "BlinkMacSystemFont", "sans-serif"],
+          mono: ["JetBrains Mono", "monospace"],
+        },
+        boxShadow: {
+          card: "0 1px 2px rgba(16, 24, 40, 0.06)",
+          "card-hover": "0 4px 12px rgba(16, 24, 40, 0.08)",
+        },
+        borderRadius: {
+          card: "8px",
+          input: "6px",
+          pill: "999px",
+        }
+      },
+    },
+  };
+</script>
+
+
+<style>*{box-sizing:border-box}html,body,#root{width:100%;height:100%;min-height:100%;margin:0}body.public-map-page{overflow:hidden}.public-shell{z-index:0;background:#05070b;width:100vw;height:100dvh;min-height:100vh;position:fixed;inset:0;overflow:hidden}.map-host{z-index:0;width:100%;min-width:0;height:100%;min-height:0;position:absolute;inset:0;overflow:hidden}.map-host .maplibregl-map,.map-host .maplibregl-canvas-container,.map-host .maplibregl-canvas{position:absolute;inset:0;width:100%!important;height:100%!important}.maplibregl-canvas{display:block}.public-navbar{z-index:30;position:absolute;top:28px;left:32px;right:32px}.map-controls{right:24px;bottom:calc(64px + env(safe-area-inset-bottom));z-index:25;position:absolute}.parcel-drawer{z-index:35;position:absolute;top:24px;bottom:24px;right:24px}.attribution-chip{left:16px;bottom:max(12px, env(safe-area-inset-bottom));z-index:30;color:#344054;background:#ffffffeb;border:1px solid #ffffff40;border-radius:8px;max-width:min(720px,100vw - 32px);padding:8px 12px;font-size:11px;line-height:1.4;position:absolute;box-shadow:0 2px 8px #0000002e}body{color:#101828;-webkit-font-smoothing:antialiased;background:#f7f9fc;margin:0;padding:0;font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;font-size:16px;line-height:1.5;overflow-x:hidden}a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline-offset:2px!important;outline:2px solid #1769aa!important}::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:#f2f4f7}::-webkit-scrollbar-thumb{background:#d0d5dd;border-radius:9999px}::-webkit-scrollbar-thumb:hover{background:#98a2b3}.maplibregl-ctrl-attrib{color:#475467!important;background-color:#ffffffe6!important;border:1px solid #d0d5dd!important;border-radius:4px!important;padding:2px 6px!important;font-size:11px!important}@media (prefers-reduced-motion:reduce){*,:before,:after{scroll-behavior:auto!important;transition-duration:0s!important;transition-delay:0s!important;animation-duration:1ms!important;animation-iteration-count:1!important;animation-delay:-1ms!important}}</style>
+  <link rel="stylesheet" crossorigin href="/bundle.css">
+</head>
+<body>
+
+<div id="root"></div>
+
+<script src="dist/bundle.js"></script>
+
+</body>
+</html>
