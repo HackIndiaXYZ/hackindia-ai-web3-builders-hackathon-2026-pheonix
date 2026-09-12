@@ -1,11 +1,10 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext.jsx";
-import mockData from "../../data/land-registry-ui-mock-data.json" with { type: "json" };
+import { transferService, useLiveParcels, useLiveTransfers } from "../../services/liveData.js";
 import { StatusChip } from "../../components/StatusChip.jsx";
 import { formatArea, formatCurrencyINR, formatDate } from "../../lib/utils.js";
 import { generateStandardSellToken, getStoredSellTokens, revokeStoredSellToken } from "../../lib/sellTokenEngine.js";
-import { getDemoTransfers, updateDemoTransfer } from "../../lib/store.js";
 import {
   Building2,
   KeyRound,
@@ -22,11 +21,11 @@ import {
 } from "lucide-react";
 
 export function MyProperty() {
-  const { user } = useAuth();
-  const parcels = mockData.parcels || [];
-  const initialTransfers = getDemoTransfers();
+  const { user, token } = useAuth();
+  const { data: parcels, loading: parcelsLoading, error: parcelsError } = useLiveParcels(token);
+  const { data: liveTransfers, loading: transfersLoading, error: transfersError } = useLiveTransfers(token);
 
-  const [transfers, setTransfers] = useState(initialTransfers);
+  const transfers = liveTransfers;
   const [tokens, setTokens] = useState(() => getStoredSellTokens());
   const [activeTokenModal, setActiveTokenModal] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -79,14 +78,13 @@ export function MyProperty() {
     }
   };
 
-  const handleApproveTransfer = (requestId) => {
-    updateDemoTransfer(requestId, { status: "AWAITING_REGISTRAR" });
-    setTransfers(getDemoTransfers());
+  const handleApproveTransfer = async (requestId) => {
+    try { await transferService.approve(requestId, {}, token); window.location.reload(); }
+    catch (err) { setErrorMsg(err.message || "The registry could not record this approval."); }
   };
 
-  const handleRejectTransfer = (requestId) => {
-    updateDemoTransfer(requestId, { status: "REJECTED" });
-    setTransfers(getDemoTransfers());
+  const handleRejectTransfer = () => {
+    setErrorMsg("Owner rejection is not supported by the live registry endpoint.");
   };
 
   const handleCopyToken = (str) => {
@@ -117,6 +115,9 @@ export function MyProperty() {
           </Link>
         </div>
       </div>
+
+      {(parcelsLoading || transfersLoading) && <div className="text-xs text-[#667085]">Loading live property and transfer records...</div>}
+      {(parcelsError || transfersError) && <div className="text-xs text-[#B42318]">{parcelsError || transfersError}</div>}
 
       {errorMsg && (
         <div className="rounded-lg border border-[#FECACA] bg-[#FEF2F2] p-4 text-xs text-[#B42318] flex items-start gap-3">

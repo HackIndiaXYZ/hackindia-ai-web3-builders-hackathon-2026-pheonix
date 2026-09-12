@@ -1,20 +1,20 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useSearchParams, useNavigate, Link } from "react-router-dom";
-import mockData from "../../data/land-registry-ui-mock-data.json" with { type: "json" };
+import { useLiveAudit, useLiveParcels } from "../../services/liveData.js";
 import { Map, MapControls, fitAllParcels } from "../../components/MapExplorer.jsx";
 import { PublicNav } from "../../components/PublicNav.jsx";
 import { MapLegend } from "../../components/MapLegend.jsx";
 import { ParcelDrawer } from "./ParcelDrawer.jsx";
 import { ParcelTooltip } from "../../components/ParcelTooltip.jsx";
 import { ShieldCheck, KeyRound, Database, FileCheck, X, Activity, Layers, AlertCircle, CheckCircle2, Clock } from "lucide-react";
-import { getDemoAuditEvents } from "../../lib/store.js";
 
 /**
  * Public Route /: Hybrid Visual Design
  * Full-screen Dark 3D Map + Floating Pill Navbar + Left Floating KPI Chips + Floating Legend + Bottom Activity Strip + Floating Controls + White Right Detail Drawer
  */
 export function ExplorerPage() {
-  const parcels = mockData.parcels || [];
+  const { data: parcels, loading: parcelsLoading, error: parcelsError } = useLiveParcels("");
+  const { data: auditEvents, loading: auditLoading, error: auditError } = useLiveAudit("");
   const mapHostRef = useRef(null);
   const navigate = useNavigate();
 
@@ -34,14 +34,7 @@ export function ExplorerPage() {
   // Recent public activity feed
   const [recentEvents, setRecentEvents] = useState([]);
 
-  useEffect(() => {
-    try {
-      const events = getDemoAuditEvents();
-      setRecentEvents(events.slice(0, 3));
-    } catch {
-      setRecentEvents((mockData.audit_events || []).slice(0, 3));
-    }
-  }, []);
+  useEffect(() => setRecentEvents(auditEvents.slice(0, 3)), [auditEvents]);
 
   // Prevent vertical body scrolling on public map
   useEffect(() => {
@@ -121,6 +114,8 @@ export function ExplorerPage() {
 
   return (
     <div className="public-shell">
+      {(parcelsLoading || auditLoading) && <div className="fixed top-4 left-1/2 z-30 -translate-x-1/2 rounded bg-black/80 px-3 py-2 text-xs text-white">Loading live registry data...</div>}
+      {(parcelsError || auditError) && <div className="fixed top-4 left-1/2 z-30 -translate-x-1/2 rounded bg-[#B42318] px-3 py-2 text-xs text-white">{parcelsError || auditError}</div>}
       {/* 1. Map Host Canvas Container */}
       <div ref={mapHostRef} className="map-host">
         <Map

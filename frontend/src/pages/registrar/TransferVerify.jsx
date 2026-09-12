@@ -1,14 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext.jsx";
-import { getDemoTransfers } from "../../lib/store.js";
+import { parcelService, transferService, useLiveResource } from "../../services/liveData.js";
 import {
   getStoredSellTokens,
   verifyStandardSellToken,
-  commitStandardSellToken,
-  generateStandardSellToken,
 } from "../../lib/sellTokenEngine.js";
-import mockData from "../../data/land-registry-ui-mock-data.json" with { type: "json" };
 import {
   ShieldCheck,
   ShieldAlert,
@@ -25,14 +22,19 @@ import {
 
 export function TransferVerify() {
   const { requestId } = useParams();
-  const { user, isRestricted } = useAuth();
+  const { user, token, isRestricted } = useAuth();
   const navigate = useNavigate();
 
-  const transfers = getDemoTransfers();
-  const transfer = transfers.find((t) => t.request_id === requestId) || transfers[0];
-
-  const parcels = mockData.parcels || [];
-  const parcel = parcels.find((p) => p.ulpin === transfer?.ulpin);
+  const { data: transfer, loading, error } = useLiveResource(
+    (sessionToken) => (requestId ? transferService.get(requestId, sessionToken) : Promise.resolve(null)),
+    token,
+    [requestId]
+  );
+  const { data: parcel } = useLiveResource(
+    (sessionToken) => (transfer?.ulpin ? parcelService.get(transfer.ulpin, sessionToken) : Promise.resolve(null)),
+    token,
+    [transfer?.ulpin]
+  );
 
   // State
   const [tokenInput, setTokenInput] = useState("");
@@ -42,7 +44,7 @@ export function TransferVerify() {
   const [commitSuccess, setCommitSuccess] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
 
-  // Initialize or auto-generate a valid demo token if none present
+  // Load a previously issued token for this petition; never synthesize credentials in production.
   useEffect(() => {
     async function initToken() {
       if (!transfer) return;
@@ -55,22 +57,6 @@ export function TransferVerify() {
       if (existing && existing.token_string) {
         setTokenInput(existing.token_string);
         runCheck(existing.token_string);
-      } else {
-        // Generate a synthetic valid demo token for this transfer
-        try {
-          const generated = await generateStandardSellToken({
-            ulpin: transfer.ulpin,
-            ownerUserId: transfer.seller_user_ids?.[0] || parcel?.owners?.[0]?.user_id || "USR-OWN-001",
-            buyerUserId: transfer.buyer_user_id || "USR-BUY-001",
-            transferRequestId: transfer.request_id,
-            scope: "FULL_CONVEYANCE",
-            ttlHours: 24,
-          });
-          setTokenInput(generated.token_string);
-          runCheck(generated.token_string);
-        } catch (err) {
-          console.error("Failed to auto-generate demo token:", err);
-        }
       }
     }
     initToken();
@@ -105,17 +91,15 @@ export function TransferVerify() {
     }
 
     try {
-      const res = await commitStandardSellToken(tokenInput.trim(), transfer, user?.badge || "GOV-REG-0182");
-      if (res.ok) {
-        setCommitSuccess(res);
-      } else {
-        setErrorMessage(res.reason || "Commit failed.");
-      }
+      const res = await transferService.submit(transfer.request_id, token);
+      setCommitSuccess(res);
     } catch (err) {
       setErrorMessage(err.message || "Failed to commit conveyance.");
     }
   };
 
+  if (loading) return <div className="text-xs text-[#667085]">Loading live transfer verification data...</div>;
+  if (error) return <div className="text-xs text-[#B42318]">{error}</div>;
   if (!transfer) {
     return (
       <div className="rounded-xl border border-[#D0D5DD] bg-white p-8 text-center max-w-md mx-auto my-12">

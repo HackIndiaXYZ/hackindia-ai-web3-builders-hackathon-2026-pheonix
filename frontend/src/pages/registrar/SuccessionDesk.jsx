@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext.jsx";
-import mockData from "../../data/land-registry-ui-mock-data.json" with { type: "json" };
-import { appendDemoAuditEvent } from "../../lib/store.js";
+import { successionService, useLiveResource, workspaceService } from "../../services/liveData.js";
 import { formatDate } from "../../lib/utils.js";
 import {
   FileCheck2,
@@ -19,62 +18,30 @@ import {
 
 export function SuccessionDesk() {
   const { caseId: paramCaseId } = useParams();
-  const { user, isRestricted } = useAuth();
+  const { user, token, isRestricted } = useAuth();
+  const { data: workspace, loading, error } = useLiveResource((sessionToken) => workspaceService.registrar(sessionToken), token);
+  const cases = workspace?.pending_successions || [];
 
-  const [cases, setCases] = useState([
-    {
-      case_id: "SUC-2026-001",
-      ulpin: "UP-GNO-0003-SUCCESSION",
-      deceased_user_id: "USR-DEAD-001",
-      deceased_name: "Mohan Nair",
-      successor_user_id: "USR-SUC-001",
-      successor_name: "Rohan Nair",
-      status: "HEIR_REVIEW_PENDING",
-      death_cert_verified: true,
-      old_key_revoked: true,
-      successor_key_rotated: false,
-    },
-    {
-      case_id: "SUC-2025-014",
-      ulpin: "UP-GNO-0004-SUCCESSION-COMPLETE",
-      deceased_user_id: "USR-DEAD-002",
-      deceased_name: "Suresh Rao",
-      successor_user_id: "USR-OWN-004",
-      successor_name: "Vikram Singh",
-      status: "MUTATION_COMPLETED",
-      death_cert_verified: true,
-      old_key_revoked: true,
-      successor_key_rotated: true,
-    },
-  ]);
-
-  const activeCaseId = paramCaseId || "SUC-2026-001";
+  const activeCaseId = paramCaseId || cases[0]?.case_id;
   const activeCase = cases.find((c) => c.case_id === activeCaseId) || cases[0];
   const [successMsg, setSuccessMsg] = useState("");
 
-  const handleCertifySuccession = (caseId) => {
+  const handleCertifySuccession = async (caseId) => {
     if (isRestricted) {
       alert("RESTRICTED ADMINISTRATIVE MODE: Dual-role constraints prevent finalizing succession mutations.");
       return;
     }
 
-    setCases((prev) =>
-      prev.map((c) =>
-        c.case_id === caseId
-          ? { ...c, status: "MUTATION_COMPLETED", successor_key_rotated: true }
-          : c
-      )
-    );
-
-    appendDemoAuditEvent({
-      action: "SUCCESSION_MUTATION_CERTIFIED",
-      ulpin: activeCase.ulpin,
-      actor_id: user?.badge || "GOV-REG-0182",
-      details: `Succession case ${caseId} certified. Title transferred to heir ${activeCase.successor_name} (${activeCase.successor_user_id}).`,
-    });
-
-    setSuccessMsg(`Case ${caseId} certified! Key rotated to ${activeCase.successor_name}.`);
+    try {
+      await successionService.verify(caseId, "registrar-adjudication", token);
+      await successionService.activate(caseId, token);
+      setSuccessMsg(`Case ${caseId} certified and activated by the registry.`);
+    } catch (err) { setSuccessMsg(err.message || "The registry could not certify this succession case."); }
   };
+
+  if (loading) return <div className="text-xs text-[#667085]">Loading live succession cases...</div>;
+  if (error) return <div className="text-xs text-[#B42318]">{error}</div>;
+  if (!activeCase) return <div className="text-xs text-[#667085]">No succession cases are awaiting registrar action.</div>;
 
   return (
     <div className="space-y-6 text-left animate-fade-slide-up">

@@ -1,14 +1,19 @@
 import React from "react";
 import { useParams, Link } from "react-router-dom";
-import mockData from "../../data/land-registry-ui-mock-data.json" with { type: "json" };
+import { useAuth } from "../../context/AuthContext.jsx";
+import { useLiveParcels } from "../../services/liveData.js";
 import { formatArea, formatDate } from "../../lib/utils.js";
 import { Building2, ArrowLeft, ShieldCheck, History } from "lucide-react";
 
 export function AuditorParcels() {
   const { ulpin: paramUlpin } = useParams();
-  const parcels = mockData.parcels || [];
+  const { token } = useAuth();
+  const { data: parcels, loading, error } = useLiveParcels(token);
 
   const selectedParcel = paramUlpin ? parcels.find((p) => p.ulpin.toLowerCase() === paramUlpin.toLowerCase()) : null;
+
+  if (loading) return <div className="text-xs text-[#667085]">Loading live parcel records...</div>;
+  if (error) return <div className="text-xs text-[#B42318]">{error}</div>;
 
   if (selectedParcel) {
     return (
@@ -18,7 +23,7 @@ export function AuditorParcels() {
             <ArrowLeft className="h-3.5 w-3.5" />
             <span>Back to All Parcels</span>
           </Link>
-          <span className="font-mono text-xs text-[#667085]">Audit Target: {selectedParcel.ulpin}</span>
+                  <span className="font-mono text-xs text-[#667085]">Audit Target: {selectedParcel.ulpin}</span>
         </div>
 
         <div className="rounded-xl border border-[#D0D5DD] bg-white p-6 shadow-sm space-y-4">
@@ -56,7 +61,7 @@ export function AuditorParcels() {
               Chain of Custody Events ({selectedParcel.history?.length || 0})
             </h3>
             <div className="divide-y divide-[#EAECF0]">
-              {(selectedParcel.history || []).map((h, idx) => (
+              {(selectedParcel.history || selectedParcel.timeline || []).map((h, idx) => (
                 <div key={idx} className="py-2.5 flex justify-between text-xs">
                   <div>
                     <span className="font-semibold text-[#101828]">{h.event_type}</span>

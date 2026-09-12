@@ -14,7 +14,6 @@ import { ExplorerPage } from "./pages/public/Explorer.jsx";
 import { HowItWorks } from "./pages/public/HowItWorks.jsx";
 import { NotFound } from "./pages/public/NotFound.jsx";
 import { AccessDenied } from "./pages/auth/AccessDenied.jsx";
->>>>>>> c74a8ed12144660065b113ae2f0ce3d4f4a3d341
 
 // Auth Pages
 import { CitizenAuth } from "./pages/auth/CitizenAuth.jsx";

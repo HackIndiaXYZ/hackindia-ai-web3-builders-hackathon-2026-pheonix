@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import mockData from "../../data/land-registry-ui-mock-data.json" with { type: "json" };
+import { parcelService, useLiveResource } from "../../services/liveData.js";
 import { StatusChip } from "../../components/StatusChip.jsx";
 import { formatArea, formatCurrencyINR, formatDate } from "../../lib/utils.js";
 import { generateStandardSellToken, checkTokenEligibility } from "../../lib/sellTokenEngine.js";
@@ -26,16 +26,19 @@ import {
 
 export function PropertyDetail() {
   const { ulpin } = useParams();
-  const { user } = useAuth();
-  const parcels = mockData.parcels || [];
-  const parcel = parcels.find(
-    (p) => p.ulpin?.toLowerCase() === (ulpin || "").toLowerCase()
+  const { user, token } = useAuth();
+  const { data: parcel, loading, error } = useLiveResource(
+    (sessionToken) => (ulpin ? parcelService.get(ulpin, sessionToken) : Promise.resolve(null)),
+    token,
+    [ulpin]
   );
 
   const [activeTokenModal, setActiveTokenModal] = useState(null);
   const [eligibilityError, setEligibilityError] = useState("");
   const [copied, setCopied] = useState(false);
 
+  if (loading) return <div className="text-xs text-[#667085]">Loading live cadastral record...</div>;
+  if (error) return <div className="text-xs text-[#B42318]">{error}</div>;
   if (!parcel) {
     return (
       <div className="rounded-xl border border-[#D0D5DD] bg-white p-8 text-center max-w-md mx-auto shadow-sm my-12">

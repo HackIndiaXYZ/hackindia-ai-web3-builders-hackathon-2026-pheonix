@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import mockData from "../data/land-registry-ui-mock-data.json" with { type: "json" };
+import { parcelService } from "../services/liveData.js";
 
 import { MapExplorer } from "../components/MapExplorer.jsx";
 import { SearchBar } from "../components/SearchBar.jsx";
@@ -13,12 +13,14 @@ import { DashboardModal } from "../components/DashboardModal.jsx";
 import { AccountModal } from "../components/AccountModal.jsx";
 import { Menu } from "lucide-react";
 import { getStatusCategory } from "../lib/parcelColors.js";
+import { useAuth } from "../context/AuthContext.jsx";
 
 export function ExplorerPage() {
-  const parcels = mockData.parcels || [];
-  const mapLayers = mockData.map_layers || {};
-  const meta = mockData.meta || {};
-  const users = mockData.users || [];
+  const { token } = useAuth();
+  const [parcels, setParcels] = useState([]);
+  const [error, setError] = useState("");
+  const meta = { map_center: { lat: 28.4744, lng: 77.5040, zoom: 14 } };
+  const mapLayers = { demo_viewport: [] };
 
   const [searchParams] = useSearchParams();
   const targetUlpin = searchParams.get("ulpin");
@@ -31,6 +33,10 @@ export function ExplorerPage() {
   const [activeView, setActiveView] = useState("map"); // 'map' | 'dashboard' | 'account'
   const [activeStatusFilter, setActiveStatusFilter] = useState(null);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    parcelService.list(token).then(setParcels).catch((err) => setError(err.message));
+  }, [token]);
 
   const mapRef = useRef(null);
 
@@ -97,6 +103,7 @@ export function ExplorerPage() {
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-navy-950 font-sans select-none text-slate-100">
+      {error && <div className="fixed top-3 left-1/2 z-50 -translate-x-1/2 rounded bg-rose-950 px-3 py-2 text-xs text-rose-200">{error}</div>}
       {/* 1. Full-Bleed 3D Map (Center & Background) */}
       <MapExplorer
         parcels={displayedParcels}

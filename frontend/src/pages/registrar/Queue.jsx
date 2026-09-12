@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { getDemoTransfers } from "../../lib/store.js";
+import { useAuth } from "../../context/AuthContext.jsx";
+import { useLiveTransfers } from "../../services/liveData.js";
 import { StatusChip } from "../../components/StatusChip.jsx";
 import { formatCurrencyINR, formatDate } from "../../lib/utils.js";
 import {
@@ -14,7 +15,8 @@ import {
 } from "lucide-react";
 
 export function Queue() {
-  const transfers = getDemoTransfers();
+  const { token } = useAuth();
+  const { data: transfers, loading, error } = useLiveTransfers(token);
   const [filter, setFilter] = useState("ALL");
 
   const filteredTransfers = transfers.filter((t) => {
@@ -54,6 +56,9 @@ export function Queue() {
         </div>
       </div>
 
+      {loading && <div className="text-xs text-[#667085]">Loading live transfer petitions...</div>}
+      {error && <div className="text-xs text-[#B42318]">{error}</div>}
+
       {/* Queue Table */}
       <div className="rounded-xl border border-[#D0D5DD] bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -70,6 +75,7 @@ export function Queue() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F2F4F7]">
+              {!loading && !error && filteredTransfers.length === 0 && <tr><td colSpan="7" className="p-6 text-center text-xs text-[#667085]">No transfer petitions match this filter.</td></tr>}
               {filteredTransfers.map((t) => {
                 const isHighRisk = t.risk_score >= 50 || t.status === "HIGH_RISK_BLOCKED";
                 return (

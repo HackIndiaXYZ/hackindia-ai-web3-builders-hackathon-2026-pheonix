@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext.jsx";
-import mockData from "../../data/land-registry-ui-mock-data.json" with { type: "json" };
+import { useLiveParcels } from "../../services/liveData.js";
 import { StatusChip } from "../../components/StatusChip.jsx";
 import { formatArea } from "../../lib/utils.js";
 import {
@@ -16,8 +16,8 @@ import {
 } from "lucide-react";
 
 export function AssociatedProperties() {
-  const { user } = useAuth();
-  const parcels = mockData.parcels || [];
+  const { user, token } = useAuth();
+  const { data: parcels, loading, error } = useLiveParcels(token);
 
   // Filter parcels where user is registered as a nominee
   const associatedParcels = React.useMemo(() => {
@@ -40,6 +40,9 @@ export function AssociatedProperties() {
         </p>
       </div>
 
+      {loading && <div className="text-xs text-[#667085]">Loading live associated properties...</div>}
+      {error && <div className="text-xs text-[#B42318]">{error}</div>}
+
       {/* SCN-03: Mandatory Dormant Notice Banner */}
       <div className="rounded-xl border border-[#BAE6FD] bg-[#F0F9FF] p-5 text-xs text-[#026AA2] space-y-2">
         <div className="flex items-start gap-3">
@@ -59,6 +62,7 @@ export function AssociatedProperties() {
 
       {/* Parcels List */}
       <div className="space-y-4">
+        {!loading && !error && associatedParcels.length === 0 && <div className="text-xs text-[#667085]">No associated properties are available for this identity.</div>}
         {associatedParcels.map((parcel) => {
           const nomineeRecord = (parcel.nominees || []).find(
             (n) => n.user_id === user?.id || n.name?.toLowerCase() === user?.name?.toLowerCase()

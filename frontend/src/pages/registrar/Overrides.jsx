@@ -1,11 +1,13 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { getDemoAuditEvents } from "../../lib/store.js";
+import { useAuth } from "../../context/AuthContext.jsx";
+import { useLiveAudit } from "../../services/liveData.js";
 import { formatDate } from "../../lib/utils.js";
 import { ShieldAlert, FileText, ArrowRight } from "lucide-react";
 
 export function Overrides() {
-  const auditEvents = getDemoAuditEvents();
+  const { token } = useAuth();
+  const { data: auditEvents, loading, error } = useLiveAudit(token);
   const overrides = auditEvents.filter((a) => a.action?.includes("OVERRIDE") || a.details?.includes("Override"));
 
   return (
@@ -19,10 +21,13 @@ export function Overrides() {
         </p>
       </div>
 
+      {loading && <div className="text-xs text-[#667085]">Loading live audit events...</div>}
+      {error && <div className="text-xs text-[#B42318]">{error}</div>}
+
       <div className="rounded-xl border border-[#D0D5DD] bg-white p-5 shadow-sm space-y-4">
         <h2 className="text-sm font-bold text-[#101828]">Logged Administrative Overrides ({overrides.length})</h2>
 
-        {overrides.length === 0 ? (
+        {!loading && !error && overrides.length === 0 ? (
           <div className="p-6 text-center text-xs text-[#667085] bg-[#F8FAFC] rounded-lg">
             No administrative overrides logged yet. When a high-risk transfer is approved with a written justification, it is recorded here.
           </div>

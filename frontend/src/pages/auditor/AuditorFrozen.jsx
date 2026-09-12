@@ -1,9 +1,11 @@
 import React from "react";
-import mockData from "../../data/land-registry-ui-mock-data.json" with { type: "json" };
+import { useAuth } from "../../context/AuthContext.jsx";
+import { useLiveParcels } from "../../services/liveData.js";
 import { Lock, ShieldAlert } from "lucide-react";
 
 export function AuditorFrozen() {
-  const parcels = mockData.parcels || [];
+  const { token } = useAuth();
+  const { data: parcels, loading, error } = useLiveParcels(token);
   const frozen = parcels.filter((p) => p.title_status === "FROZEN" || p.ulpin === "UP-NOI-0009-DISPUTED");
 
   return (
@@ -15,7 +17,11 @@ export function AuditorFrozen() {
         </p>
       </div>
 
+      {loading && <div className="text-xs text-[#667085]">Loading live parcel records...</div>}
+      {error && <div className="text-xs text-[#B42318]">{error}</div>}
+
       <div className="space-y-4">
+        {!loading && !error && frozen.length === 0 && <div className="text-xs text-[#667085]">No frozen parcels are currently reported by the registry.</div>}
         {frozen.map((p) => (
           <div key={p.ulpin} className="rounded-xl border border-[#D0D5DD] bg-white p-5 shadow-sm space-y-3">
             <div className="flex items-center justify-between border-b border-[#EAECF0] pb-3">

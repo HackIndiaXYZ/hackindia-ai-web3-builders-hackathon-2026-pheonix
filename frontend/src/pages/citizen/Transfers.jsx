@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext.jsx";
-import { getDemoTransfers } from "../../lib/store.js";
+import { transferService, normalizeTransfer } from "../../services/liveData.js";
 import { formatCurrencyINR, formatDate } from "../../lib/utils.js";
 import {
   ArrowRightLeft,
@@ -14,8 +14,13 @@ import {
 } from "lucide-react";
 
 export function Transfers() {
-  const { user } = useAuth();
-  const transfers = getDemoTransfers();
+  const { token } = useAuth();
+  const [transfers, setTransfers] = useState([]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    transferService.list(token).then((items) => setTransfers((items || []).map(normalizeTransfer))).catch((err) => setError(err.message));
+  }, [token]);
 
   const [filter, setFilter] = useState("ALL");
 
@@ -57,6 +62,8 @@ export function Transfers() {
 
       {/* Transfers List */}
       <div className="space-y-3">
+        {error && <div className="text-xs text-[#B42318]">{error}</div>}
+        {!error && !filteredTransfers.length && <div className="text-xs text-[#667085]">No server transfers found.</div>}
         {filteredTransfers.map((tr) => (
           <div
             key={tr.request_id}
@@ -82,9 +89,7 @@ export function Transfers() {
               </div>
 
               <div className="mt-2 flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-[#475467]">
-                <span>Buyer: <strong className="text-[#101828]">{tr.buyer_user_id}</strong></span>
-                <span>·</span>
-                <span>Price: <strong className="font-mono text-[#0B3A67]">{formatCurrencyINR(tr.agreed_price_inr)}</strong></span>
+                <span>Buyer: <strong className="text-[#101828]">{tr.buyer_name || "Unavailable"}</strong></span>
                 <span>·</span>
                 <span>Created: {formatDate(tr.created_at)}</span>
               </div>

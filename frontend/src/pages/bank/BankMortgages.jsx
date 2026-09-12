@@ -1,11 +1,13 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import mockData from "../../data/land-registry-ui-mock-data.json" with { type: "json" };
+import { useAuth } from "../../context/AuthContext.jsx";
+import { useLiveParcels } from "../../services/liveData.js";
 import { formatCurrencyINR, formatDate } from "../../lib/utils.js";
 import { Landmark, ShieldCheck, CheckCircle2, Building2 } from "lucide-react";
 
 export function BankMortgages() {
-  const parcels = mockData.parcels || [];
+  const { token } = useAuth();
+  const { data: parcels, loading, error } = useLiveParcels(token);
   const encumberedParcels = parcels.filter(
     (p) => (p.encumbrances && p.encumbrances.length > 0) || p.ulpin === "UP-NOI-0005-ENCUMBERED"
   );
@@ -18,6 +20,9 @@ export function BankMortgages() {
           Statutory register of institutional equitable mortgages, hypothecation charges, and CERSAI filings.
         </p>
       </div>
+
+      {loading && <div className="text-xs text-[#667085]">Loading live encumbrance records...</div>}
+      {error && <div className="text-xs text-[#B42318]">{error}</div>}
 
       {/* SCN-06 Highlight Banner */}
       <div className="rounded-xl border border-[#A6F4C5] bg-[#ECFDF3] p-5 text-xs text-[#027A48] space-y-2">
@@ -57,9 +62,7 @@ export function BankMortgages() {
 
             {/* Mortgages List */}
             <div className="space-y-2">
-              {(parcel.encumbrances || [
-                { type: "EQUITABLE_MORTGAGE", holder: "State Bank of India", amount_inr: 4500000, status: "ACTIVE" }
-              ]).map((enc, idx) => (
+              {(parcel.encumbrances || []).map((enc, idx) => (
                 <div key={idx} className="p-4 bg-[#F8FAFC] rounded-xl border border-[#EAECF0] text-xs grid grid-cols-1 sm:grid-cols-4 gap-3">
                   <div>
                     <span className="text-[#667085] block">Charge Type:</span>
@@ -72,12 +75,12 @@ export function BankMortgages() {
                   <div>
                     <span className="text-[#667085] block">Secured Consideration:</span>
                     <span className="font-mono font-bold text-[#0B3A67] text-sm">
-                      {formatCurrencyINR(enc.amount_inr || 4500000)}
+                      {enc.amount_inr == null ? "Unavailable" : formatCurrencyINR(enc.amount_inr)}
                     </span>
                   </div>
                   <div>
                     <span className="text-[#667085] block">CERSAI Registration:</span>
-                    <span className="font-mono text-[11px] text-[#027A48] font-bold">CR-2024-91024 (ACTIVE)</span>
+                    <span className="font-mono text-[11px] text-[#667085] font-bold">Unavailable</span>
                   </div>
                 </div>
               ))}

@@ -1,8 +1,8 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import mockData from "../../data/land-registry-ui-mock-data.json" with { type: "json" };
 import { KpiCard } from "../../components/KpiCard.jsx";
-import { getDemoAuditEvents, getDemoTransfers } from "../../lib/store.js";
+import { auditService, transferService, normalizeAuditEvent, normalizeTransfer } from "../../services/liveData.js";
+import { useAuth } from "../../context/AuthContext.jsx";
 import { formatDate } from "../../lib/utils.js";
 import {
   FileSpreadsheet,
@@ -17,23 +17,21 @@ import {
 } from "lucide-react";
 
 export function AuditorDashboard() {
-  const kpis = mockData.dashboard_views?.AUDITOR?.kpis || {
-    audit_events: 4128,
-    overrides: 23,
-    frozen_parcels: 1,
-    open_reviews: 7,
-  };
-
-  const priorityItems = mockData.dashboard_views?.AUDITOR?.priority_items || [
-    "TR-2026-003",
-    "TR-2026-006",
-  ];
-
-  const events = getDemoAuditEvents();
-  const transfers = getDemoTransfers();
+  const { token } = useAuth();
+  const [events, setEvents] = useState([]);
+  const [transfers, setTransfers] = useState([]);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    Promise.all([auditService.list(token), transferService.list(token)])
+      .then(([audit, items]) => { setEvents((audit || []).map(normalizeAuditEvent)); setTransfers((items || []).map(normalizeTransfer)); })
+      .catch((err) => setError(err.message));
+  }, [token]);
+  const priorityItems = transfers.slice(0, 4).map((item) => item.request_id);
+  const kpis = { audit_events: events.length, overrides: events.filter((item) => String(item.action).includes("OVERRIDE")).length, frozen_parcels: events.filter((item) => item.action === "PARCEL_FROZEN").length, open_reviews: transfers.filter((item) => !["COMPLETED", "REJECTED", "EXPIRED"].includes(item.status)).length };
 
   return (
     <div className="space-y-6 text-left animate-fade-slide-up">
+    {error && <div className="text-xs text-[#B42318]">{error}</div>}
       {/* Header */}
       <div className="border-b border-[#EAECF0] pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>

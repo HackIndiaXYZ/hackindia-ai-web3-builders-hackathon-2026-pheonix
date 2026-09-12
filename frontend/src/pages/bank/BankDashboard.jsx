@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import mockData from "../../data/land-registry-ui-mock-data.json" with { type: "json" };
+import { parcelService, workspaceService } from "../../services/liveData.js";
+import { useAuth } from "../../context/AuthContext.jsx";
 import { KpiCard } from "../../components/KpiCard.jsx";
 import { formatCurrencyINR } from "../../lib/utils.js";
 import {
@@ -15,19 +16,19 @@ import {
 } from "lucide-react";
 
 export function BankDashboard() {
-  const kpis = mockData.dashboard_views?.BANK?.kpis || {
-    title_checks: 18,
-    mortgages_active: 7,
-    reports_ready: 4,
-    blocked_finance_cases: 2,
-  };
-
-  const priorityItems = mockData.dashboard_views?.BANK?.priority_items || [
-    "UP-NOI-0005-ENCUMBERED",
-    "UP-NOI-0009-DISPUTED",
-  ];
-
-  const parcels = mockData.parcels || [];
+  const { token } = useAuth();
+  const [parcels, setParcels] = useState([]);
+  const [priorityItems, setPriorityItems] = useState([]);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    Promise.all([parcelService.list(token), workspaceService.bankReport("UP-0001-CLEAN", token)])
+      .then(([items, report]) => {
+        setParcels(items || []);
+        setPriorityItems((items || []).filter((item) => item.frozen || item.encumbrances?.length).map((item) => item.ulpin));
+      })
+      .catch((err) => setError(err.message));
+  }, [token]);
+  const kpis = { title_checks: parcels.length, mortgages_active: parcels.filter((p) => p.encumbrances?.length).length, reports_ready: parcels.length, blocked_finance_cases: parcels.filter((p) => p.frozen).length };
 
   return (
     <div className="space-y-6 text-left animate-fade-slide-up">
@@ -48,6 +49,7 @@ export function BankDashboard() {
           <span>Title Verification Desk</span>
         </Link>
       </div>
+      {error && <div className="text-xs text-[#B42318]">{error}</div>}
 
       {/* Verbatim Bank KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -94,8 +96,8 @@ export function BankDashboard() {
         <div className="divide-y divide-[#EAECF0]">
           {priorityItems.map((ulpin) => {
             const p = parcels.find((item) => item.ulpin === ulpin);
-            const isEncumbered = ulpin === "UP-NOI-0005-ENCUMBERED";
-            const isFrozen = ulpin === "UP-NOI-0009-DISPUTED";
+            const isEncumbered = Boolean(p?.encumbrances?.length);
+            const isFrozen = Boolean(p?.frozen);
 
             return (
               <div
@@ -116,8 +118,8 @@ export function BankDashboard() {
                     </span>
                   </div>
                   <p className="mt-1 text-[#475467]">
-                    {isEncumbered && "SCN-06: Active Mortgage with State Bank of India (₹45,00,000). Title health 88/100."}
-                    {isFrozen && "SCN-10: Judicial Injunction Active. Financing and equitable mortgage registration prohibited."}
+                    {isEncumbered && "Active encumbrance is recorded in the parcel report."}
+                    {isFrozen && "Parcel is frozen; financing actions require registrar clearance."}
                   </p>
                 </div>
 

@@ -493,6 +493,13 @@ def nominee_workspace():
                     "notifications": v2.list_notifications(recipient=user)})
 
 
+@app.route("/api/succession", methods=["GET"])
+@require_role("OWNER", "BUYER", "NOMINEE")
+def citizen_succession_cases():
+    user = request.session["username"]
+    return jsonify(v2.list_succession_cases(nominee=user))
+
+
 @app.route("/api/reports/parcel/<ulpin>", methods=["GET"])
 @require_role("BANK", "AUDITOR", "REGISTRAR")
 def parcel_report(ulpin):
@@ -605,6 +612,14 @@ def create_v2_transfer():
                                   validation.optional_str(body, "assessment_hash", default="PENDING", max_length=128),
                                   request.session["username"])
     return jsonify(transfer), 201
+
+
+@app.route("/api/v2/transfers", methods=["GET"])
+@require_role("OWNER", "BUYER", "NOMINEE", "REGISTRAR", "AUDITOR", "BANK")
+def list_v2_transfers():
+    statuses = request.args.get("statuses")
+    values = v2.list_transfers(statuses=set(statuses.split(",")) if statuses else None)
+    return jsonify(values)
 
 
 @app.route("/api/v2/transfers/<transfer_id>", methods=["GET"])

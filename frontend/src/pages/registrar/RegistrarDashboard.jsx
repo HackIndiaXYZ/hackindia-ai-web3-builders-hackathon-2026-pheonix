@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext.jsx";
-import mockData from "../../data/land-registry-ui-mock-data.json";
+import { useLiveParcels } from "../../services/liveData.js";
 import {
   Landmark,
   BadgeCheck,
@@ -19,9 +19,8 @@ import { formatArea, formatCurrencyINR } from "../../lib/utils.js";
 import { getStatusBadgeProps } from "../../lib/parcelColors.js";
 
 export function RegistrarDashboard() {
-  const { user } = useAuth();
-  const parcels = mockData.parcels || [];
-  const auditEvents = mockData.audit_events || [];
+  const { user, token } = useAuth();
+  const { data: parcels, loading, error } = useLiveParcels(token);
 
   // Summary counts
   const totalParcels = parcels.length;
@@ -35,6 +34,8 @@ export function RegistrarDashboard() {
 
   return (
     <div className="space-y-6 text-left">
+      {loading && <div className="text-xs text-slate-400">Loading live jurisdictional parcels...</div>}
+      {error && <div className="text-xs text-rose-300">{error}</div>}
       {/* Administrative Header Banner */}
       <div className="rounded-3xl border border-amber-500/30 bg-gradient-to-r from-[#090f20] via-[#0d152a] to-[#121c38] p-6 sm:p-8 shadow-xl relative overflow-hidden">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">

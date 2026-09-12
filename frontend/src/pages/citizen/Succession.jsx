@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext.jsx";
-import mockData from "../../data/land-registry-ui-mock-data.json" with { type: "json" };
+import { successionService, useLiveResource } from "../../services/liveData.js";
 import { formatDate } from "../../lib/utils.js";
 import {
   FileText,
@@ -17,55 +17,15 @@ import {
 } from "lucide-react";
 
 export function Succession() {
-  const { user, isDeceased } = useAuth();
-  const successionCases = mockData.succession_cases || [
-    {
-      case_id: "SUC-2026-001",
-      ulpin: "UP-GNO-0003-SUCCESSION",
-      deceased_user_id: "USR-DEAD-001",
-      deceased_name: "Mohan Nair",
-      successor_user_id: "USR-SUC-001",
-      successor_name: "Rohan Nair",
-      status: "HEIR_REVIEW_PENDING",
-      death_cert_verified: true,
-      old_key_revoked: true,
-      steps: [
-        { label: "Death Certificate Verification", status: "COMPLETED", date: "2026-01-15" },
-        { label: "Statutory Heir Public Notice (30 Days)", status: "COMPLETED", date: "2026-02-15" },
-        { label: "Sub-Registrar Adjudication", status: "PENDING", date: null },
-        { label: "Key Rotation & Title Re-Issuance", status: "AWAITING_STEP", date: null },
-      ],
-      documents: [
-        { name: "Official Death Certificate", id: "DC-2026-0918", verified: true },
-        { name: "Legal Heir Affidavit", id: "LHA-2026-012", verified: true },
-        { name: "Surviving Member Certificate", id: "SMC-2026-004", verified: true },
-      ]
-    },
-    {
-      case_id: "SUC-2025-014",
-      ulpin: "UP-GNO-0004-SUCCESSION-COMPLETE",
-      deceased_user_id: "USR-DEAD-002",
-      deceased_name: "Suresh Rao",
-      successor_user_id: "USR-OWN-004",
-      successor_name: "Vikram Singh",
-      status: "MUTATION_COMPLETED",
-      death_cert_verified: true,
-      old_key_revoked: true,
-      steps: [
-        { label: "Death Certificate Verification", status: "COMPLETED", date: "2025-08-10" },
-        { label: "Statutory Heir Public Notice (30 Days)", status: "COMPLETED", date: "2025-09-10" },
-        { label: "Sub-Registrar Adjudication", status: "COMPLETED", date: "2025-09-15" },
-        { label: "Key Rotation & Title Re-Issuance", status: "COMPLETED", date: "2025-09-16" },
-      ],
-      documents: [
-        { name: "Death Certificate", id: "DC-2025-4412", verified: true },
-        { name: "Final Mutation Decree", id: "FMD-2025-091", verified: true }
-      ]
-    }
-  ];
+  const { token, isDeceased } = useAuth();
+  const { data: successionCases, loading, error } = useLiveResource((sessionToken) => successionService.list(sessionToken), token);
 
-  const [activeCaseId, setActiveCaseId] = useState("SUC-2026-001");
+  const [activeCaseId, setActiveCaseId] = useState(null);
   const activeCase = successionCases.find((c) => c.case_id === activeCaseId) || successionCases[0];
+
+  if (loading) return <div className="text-xs text-[#667085]">Loading live succession cases...</div>;
+  if (error) return <div className="text-xs text-[#B42318]">{error}</div>;
+  if (!activeCase) return <div className="text-xs text-[#667085]">No succession cases are available for this identity.</div>;
 
   return (
     <div className="space-y-6 text-left animate-fade-slide-up">

@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext.jsx";
-import mockData from "../../data/land-registry-ui-mock-data.json";
+import { useLiveParcels } from "../../services/liveData.js";
 import {
   User,
   ShieldCheck,
@@ -20,8 +20,8 @@ import { formatArea } from "../../lib/utils.js";
 import { getStatusBadgeProps } from "../../lib/parcelColors.js";
 
 export function CitizenDashboard() {
-  const { user } = useAuth();
-  const parcels = mockData.parcels || [];
+  const { user, token } = useAuth();
+  const { data: parcels, loading, error } = useLiveParcels(token);
 
   // Filter parcels where current user is an owner or nominee
   const userParcels = React.useMemo(() => {
@@ -39,6 +39,8 @@ export function CitizenDashboard() {
 
   return (
     <div className="space-y-6 text-left">
+      {loading && <div className="text-xs text-slate-400">Loading live property records...</div>}
+      {error && <div className="text-xs text-rose-300">{error}</div>}
       {/* Welcome Hero Banner */}
       <div className="rounded-3xl border border-white/10 bg-gradient-to-r from-navy-900/90 via-navy-900/70 to-cyan-950/40 p-6 sm:p-8 shadow-glass backdrop-blur-xl relative overflow-hidden">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">

@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext.jsx";
-import { getDemoTransfers, updateDemoTransfer } from "../../lib/store.js";
-import mockData from "../../data/land-registry-ui-mock-data.json" with { type: "json" };
+import { parcelService, transferService, useLiveResource } from "../../services/liveData.js";
 import { formatCurrencyINR, formatDate } from "../../lib/utils.js";
 import {
   ArrowLeft,
@@ -21,14 +20,20 @@ import {
 
 export function TransferDetail() {
   const { requestId } = useParams();
-  const { user } = useAuth();
-  const transfers = getDemoTransfers();
-  const transfer = transfers.find((t) => t.request_id === requestId);
-  const parcels = mockData.parcels || [];
-  const parcel = parcels.find((p) => p.ulpin === transfer?.ulpin);
+  const { user, token } = useAuth();
+  const { data: currentTransfer, loading, error } = useLiveResource(
+    (sessionToken) => (requestId ? transferService.get(requestId, sessionToken) : Promise.resolve(null)),
+    token,
+    [requestId]
+  );
+  const { data: parcel } = useLiveResource(
+    (sessionToken) => (currentTransfer?.ulpin ? parcelService.get(currentTransfer.ulpin, sessionToken) : Promise.resolve(null)),
+    token,
+    [currentTransfer?.ulpin]
+  );
 
-  const [currentTransfer, setCurrentTransfer] = useState(transfer);
-
+  if (loading) return <div className="text-xs text-[#667085]">Loading live transfer petition...</div>;
+  if (error) return <div className="text-xs text-[#B42318]">{error}</div>;
   if (!currentTransfer) {
     return (
       <div className="rounded-xl border border-[#D0D5DD] bg-white p-8 text-center max-w-md mx-auto shadow-sm my-12">
@@ -57,23 +62,13 @@ export function TransferDetail() {
   const requiredApprovals = currentTransfer.authorization?.required_owner_approvals || ownerApprovals.length || 1;
   const approvedCount = ownerApprovals.filter((a) => a.status === "APPROVED").length;
 
-  const handleConsent = () => {
-    const updated = updateDemoTransfer(currentTransfer.request_id, {
-      status: "AWAITING_REGISTRAR",
-      authorization: {
-        ...currentTransfer.authorization,
-        owner_approvals: ownerApprovals.map(a => a.user_id === user?.id ? { ...a, status: "APPROVED", signed_at: new Date().toISOString() } : a)
-      }
-    });
-    if (updated) setCurrentTransfer(updated);
+  const handleConsent = async () => {
+    try { await transferService.approve(currentTransfer.request_id, {}, token); window.location.reload(); }
+    catch (err) { window.alert(err.message || "The registry could not record consent."); }
   };
 
   const handleReject = () => {
-    const updated = updateDemoTransfer(currentTransfer.request_id, {
-      status: "REJECTED",
-      rejection_reason: "SELLER_REJECTED"
-    });
-    if (updated) setCurrentTransfer(updated);
+    window.alert("Owner rejection is not supported by the live registry endpoint.");
   };
 
   return (

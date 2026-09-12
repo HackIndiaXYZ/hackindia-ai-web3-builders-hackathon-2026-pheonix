@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
-import mockData from "../../data/land-registry-ui-mock-data.json" with { type: "json" };
+import { useAuth } from "../../context/AuthContext.jsx";
+import { useLiveParcels } from "../../services/liveData.js";
 import { StatusChip } from "../../components/StatusChip.jsx";
 import { formatArea, formatCurrencyINR, formatDate } from "../../lib/utils.js";
 import {
@@ -20,7 +21,8 @@ import {
 
 export function ParcelRegister() {
   const { ulpin: paramUlpin } = useParams();
-  const parcels = mockData.parcels || [];
+  const { token } = useAuth();
+  const { data: parcels, loading, error } = useLiveParcels(token);
 
   const [filterQuery, setFilterQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -49,6 +51,9 @@ export function ParcelRegister() {
       return matchQuery && matchStatus;
     });
   }, [parcels, filterQuery, statusFilter]);
+
+  if (loading) return <div className="text-xs text-[#667085]">Loading live parcel register...</div>;
+  if (error) return <div className="text-xs text-[#B42318]">{error}</div>;
 
   if (detailedParcel) {
     const isHistoryGap = detailedParcel.ulpin === "UP-NOI-0010-HISTORY-GAP";

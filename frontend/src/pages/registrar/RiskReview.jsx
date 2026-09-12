@@ -1,10 +1,12 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import mockData from "../../data/land-registry-ui-mock-data.json" with { type: "json" };
+import { useAuth } from "../../context/AuthContext.jsx";
+import { useLiveParcels } from "../../services/liveData.js";
 import { ShieldAlert, AlertTriangle, CheckCircle2, ArrowRight } from "lucide-react";
 
 export function RiskReview() {
-  const parcels = mockData.parcels || [];
+  const { token } = useAuth();
+  const { data: parcels, loading, error } = useLiveParcels(token);
   const flagged = parcels.filter(
     (p) => p.title_status?.includes("REVIEW") || p.title_status?.includes("GAP") || p.title_status === "FROZEN" || p.title_health_score < 90
   );
@@ -20,7 +22,11 @@ export function RiskReview() {
         </p>
       </div>
 
+      {loading && <div className="text-xs text-[#667085]">Loading live risk records...</div>}
+      {error && <div className="text-xs text-[#B42318]">{error}</div>}
+
       <div className="space-y-4">
+        {!loading && !error && flagged.length === 0 && <div className="text-xs text-[#667085]">No flagged parcels are currently reported.</div>}
         {flagged.map((p) => (
           <div
             key={p.ulpin}

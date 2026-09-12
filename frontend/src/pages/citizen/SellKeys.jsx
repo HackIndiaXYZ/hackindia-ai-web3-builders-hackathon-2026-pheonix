@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { getStoredSellTokens, revokeStoredSellToken, generateStandardSellToken } from "../../lib/sellTokenEngine.js";
-import mockData from "../../data/land-registry-ui-mock-data.json" with { type: "json" };
+import { useLiveParcels } from "../../services/liveData.js";
 import {
   KeyRound,
   QrCode,
@@ -18,8 +18,8 @@ import {
 
 export function SellKeys() {
   const { keyId: routeKeyId } = useParams();
-  const { user } = useAuth();
-  const parcels = mockData.parcels || [];
+  const { user, token } = useAuth();
+  const { data: parcels, loading, error } = useLiveParcels(token);
 
   const [tokens, setTokens] = useState(() => getStoredSellTokens());
   const [selectedToken, setSelectedToken] = useState(() => {
@@ -90,6 +90,9 @@ export function SellKeys() {
           <span>Generate New Sell Token</span>
         </button>
       </div>
+
+      {loading && <div className="text-xs text-[#667085]">Loading live properties...</div>}
+      {error && <div className="text-xs text-[#B42318]">{error}</div>}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Token List */}

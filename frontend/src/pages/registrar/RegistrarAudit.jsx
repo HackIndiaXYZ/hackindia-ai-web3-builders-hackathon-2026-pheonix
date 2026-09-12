@@ -1,13 +1,20 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext.jsx";
-import mockData from "../../data/land-registry-ui-mock-data.json";
+import { auditService, normalizeAuditEvent } from "../../services/liveData.js";
 import { FileCheck2, Scale, ShieldAlert, ArrowRight, UserCheck, Clock, CheckCircle } from "lucide-react";
 import { formatDate } from "../../lib/utils.js";
 
 export function RegistrarAudit() {
-  const { user } = useAuth();
-  const auditEvents = mockData.audit_events || [];
+  const { user, token } = useAuth();
+  const [auditEvents, setAuditEvents] = useState([]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    auditService.list(token)
+      .then((events) => setAuditEvents((events || []).map(normalizeAuditEvent)))
+      .catch((err) => setError(err.message));
+  }, [token]);
 
   return (
     <div className="space-y-6 text-left">
@@ -29,6 +36,7 @@ export function RegistrarAudit() {
           <ArrowRight className="h-4 w-4" />
         </Link>
       </div>
+      {error && <div className="text-xs text-rose-300">{error}</div>}
 
       {/* Role Constraints & Statutory Safeguards Card */}
       <div className="rounded-3xl border border-amber-500/30 bg-[#080e1e]/90 p-6 space-y-4">

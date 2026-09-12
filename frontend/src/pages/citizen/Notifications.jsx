@@ -1,16 +1,20 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getDemoNotifications, markDemoNotificationRead } from "../../lib/store.js";
+import { notificationService, normalizeNotification } from "../../services/liveData.js";
+import { useAuth } from "../../context/AuthContext.jsx";
 import { formatDate } from "../../lib/utils.js";
 import { Bell, ArrowRight, CheckCircle2, AlertTriangle, FileText } from "lucide-react";
 
 export function Notifications() {
-  const [notifications, setNotifications] = useState(() => getDemoNotifications());
+  const { token } = useAuth();
+  const [notifications, setNotifications] = useState([]);
+  const [error, setError] = useState("");
 
-  const handleMarkRead = (id) => {
-    const updated = markDemoNotificationRead(id);
-    setNotifications(updated);
-  };
+  useEffect(() => {
+    notificationService.list(token)
+      .then((items) => setNotifications((items || []).map(normalizeNotification)))
+      .catch((err) => setError(err.message));
+  }, [token]);
 
   return (
     <div className="space-y-6 text-left animate-fade-slide-up">
@@ -26,6 +30,8 @@ export function Notifications() {
       </div>
 
       <div className="space-y-3">
+        {error && <div className="text-xs text-[#B42318]">{error}</div>}
+        {!error && !notifications.length && <div className="text-xs text-[#667085]">No notifications available.</div>}
         {notifications.map((n) => {
           const isRead = n.read || false;
           return (
@@ -74,14 +80,6 @@ export function Notifications() {
                     </div>
                   ) : <div />}
 
-                  {!isRead && (
-                    <button
-                      onClick={() => handleMarkRead(n.id || n.notification_id)}
-                      className="text-[11px] font-semibold text-[#0B3A67] hover:underline"
-                    >
-                      Mark as read
-                    </button>
-                  )}
                 </div>
               </div>
             </div>

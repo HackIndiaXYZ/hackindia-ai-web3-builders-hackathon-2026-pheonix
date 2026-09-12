@@ -1,139 +1,89 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import {
-  getSession,
-  loginCitizen as mockLoginCitizen,
-  loginRegistrar as mockLoginRegistrar,
-  loginAuditor as mockLoginAuditor,
-  loginBank as mockLoginBank,
-  simulateDigiLocker as mockSimulateDigiLocker,
-  createDemoCitizen as mockCreateDemoCitizen,
-  switchWorkspace as mockSwitchWorkspace,
-  logout as mockLogout,
-} from "../services/mockAuth.js";
-import { resetAllDemoData } from "../lib/store.js";
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { currentSession, login as apiLogin, logout as apiLogout, setUnauthorizedHandler } from "../lib/api.js";
 
 const AuthContext = createContext(null);
+const TOKEN_KEY = "land_registry_token";
+const SESSION_KEY = "land_registry_session";
+
+function usernameFor(identifier, role) {
+  const value = String(identifier || "").trim().toLowerCase();
+  if (role === "REGISTRAR") return value === "reg1" ? "reg1" : "registrar_noida2";
+  if (role === "AUDITOR") return value === "auditor1" || value.includes("auditor") ? "auditor1" : value;
+  if (role === "BANK") return value.includes("@") ? value.split("@")[0] : value;
+  return value.includes("@") ? value.split("@")[0] : value;
+}
+
+function errorResult(error) {
+  return { ok: false, error: error?.message || "Authentication failed. Please try again." };
+}
 
 export function AuthProvider({ children }) {
-  // Synchronous initialisation to avoid blank flashes and bouncing redirects on hard refresh
+  const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY) || "");
   const [user, setUser] = useState(() => {
-    try {
-      return getSession();
-    } catch (err) {
-      console.error("Synchronous session restoration failed:", err);
-      return null;
-    }
+    try { return JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch { return null; }
   });
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(token));
 
-  const loginCitizen = useCallback(async (identifier, password) => {
-    const res = await mockLoginCitizen(identifier, password);
-    if (res.ok && res.user) {
-      setUser(res.user);
-    }
-    return res;
-  }, []);
-
-  const loginRegistrar = useCallback(async (badge, email, password) => {
-    const res = await mockLoginRegistrar(badge, email, password);
-    if (res.ok && res.user) {
-      setUser(res.user);
-    }
-    return res;
-  }, []);
-
-  const loginAuditor = useCallback(async (badge, email, password) => {
-    const res = await mockLoginAuditor(badge, email, password);
-    if (res.ok && res.user) {
-      setUser(res.user);
-    }
-    return res;
-  }, []);
-
-  const loginBank = useCallback(async (email, password) => {
-    const res = await mockLoginBank(email, password);
-    if (res.ok && res.user) {
-      setUser(res.user);
-    }
-    return res;
-  }, []);
-
-  const loginDigiLocker = useCallback(async (identifier, aadhaarLast4) => {
-    const res = await mockSimulateDigiLocker(identifier, aadhaarLast4);
-    if (res.ok && res.user) {
-      setUser(res.user);
-    }
-    return res;
-  }, []);
-
-  const signup = useCallback(async (formData) => {
-    const res = await mockCreateDemoCitizen(formData);
-    if (res.ok && res.user) {
-      setUser(res.user);
-    }
-    return res;
-  }, []);
-
-  const switchWorkspace = useCallback((targetRole) => {
-    const res = mockSwitchWorkspace(targetRole);
-    if (res.ok && res.user) {
-      setUser(res.user);
-    }
-    return res;
-  }, []);
-
-  const logout = useCallback(() => {
-    mockLogout();
+  const clearSession = () => {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(SESSION_KEY);
+    setToken("");
     setUser(null);
-  }, []);
-
-  const resetDemoData = useCallback(() => {
-    resetAllDemoData();
-    // Re-sync session if needed
-    const current = getSession();
-    setUser(current);
-  }, []);
-
-  const roles = Array.isArray(user?.roles) ? user.roles : [];
-  const activeRole = user?.active_role || user?.activeRole || roles[0] || null;
-
-  const isCitizen = Boolean(user && roles.some((r) => ["OWNER", "BUYER", "NOMINEE"].includes(r)));
-  const isRegistrar = Boolean(user && roles.includes("REGISTRAR"));
-  const isAuditor = Boolean(user && roles.includes("AUDITOR"));
-  const isBank = Boolean(user && roles.includes("BANK"));
-  const isDeceased = user?.account_status === "DECEASED";
-  const isRestricted = user?.account_status === "RESTRICTED";
-
-  const value = {
-    user,
-    isAuthenticated: Boolean(user),
-    roles,
-    activeRole,
-    isCitizen,
-    isRegistrar,
-    isAuditor,
-    isBank,
-    isDeceased,
-    isRestricted,
-    loading,
-    loginCitizen,
-    loginRegistrar,
-    loginAuditor,
-    loginBank,
-    loginDigiLocker,
-    signup,
-    switchWorkspace,
-    logout,
-    resetDemoData,
   };
+
+  useEffect(() => {
+    setUnauthorizedHandler(clearSession);
+    if (!token) { setLoading(false); return undefined; }
+    currentSession(token)
+      .then((session) => {
+        const liveUser = { ...session, roles: [session.role], active_role: session.role };
+        setUser(liveUser);
+        localStorage.setItem(SESSION_KEY, JSON.stringify(liveUser));
+      })
+      .catch(clearSession)
+      .finally(() => setLoading(false));
+    return () => setUnauthorizedHandler(null);
+  }, [token]);
+
+  async function signIn(identifier, role) {
+    try {
+      const response = await apiLogin(usernameFor(identifier, role), role);
+      const liveUser = { ...response, roles: [response.role], active_role: response.role };
+      localStorage.setItem(TOKEN_KEY, response.token);
+      localStorage.setItem(SESSION_KEY, JSON.stringify(liveUser));
+      setToken(response.token);
+      setUser(liveUser);
+      return { ok: true, user: liveUser };
+    } catch (error) {
+      return errorResult(error);
+    }
+  }
+
+  const value = useMemo(() => {
+    const roles = user?.roles || [];
+    return {
+      user, token, loading, isAuthenticated: Boolean(token && user), roles,
+      activeRole: user?.active_role || user?.role,
+      isCitizen: roles.some((role) => ["OWNER", "BUYER", "NOMINEE"].includes(role)),
+      isRegistrar: roles.includes("REGISTRAR"), isAuditor: roles.includes("AUDITOR"), isBank: roles.includes("BANK"),
+      isDeceased: false, isRestricted: false,
+      loginCitizen: (identifier) => signIn(identifier, "OWNER"),
+      loginRegistrar: (identifier) => signIn(identifier, "REGISTRAR"),
+      loginAuditor: (identifier) => signIn(identifier, "AUDITOR"),
+      loginBank: (identifier) => signIn(identifier, "BANK"),
+      loginDigiLocker: (identifier) => signIn(identifier, "OWNER"),
+      signup: async () => ({ ok: false, error: "Account provisioning is handled by the identity provider." }),
+      switchWorkspace: async (role) => signIn(user?.username, role),
+      logout: async () => { try { await apiLogout(token); } finally { clearSession(); } },
+      resetDemoData: () => {},
+    };
+  }, [token, user, loading]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
+  if (!context) throw new Error("useAuth must be used within an AuthProvider");
   return context;
 }

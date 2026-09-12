@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext.jsx";
-import mockData from "../../data/land-registry-ui-mock-data.json" with { type: "json" };
+import { useLiveTransfers } from "../../services/liveData.js";
 import { formatCurrencyINR, formatDate } from "../../lib/utils.js";
 import {
   ShoppingBag,
@@ -16,8 +16,8 @@ import {
 } from "lucide-react";
 
 export function Purchases() {
-  const { user } = useAuth();
-  const transfers = mockData.transfer_requests || [];
+  const { user, token } = useAuth();
+  const { data: transfers, loading, error } = useLiveTransfers(token);
 
   // Completed transfer TR-2026-007 (SCN-14)
   const completedTransfer = transfers.find((t) => t.request_id === "TR-2026-007") || transfers[0];
@@ -38,6 +38,9 @@ export function Purchases() {
           Track land acquisition petitions, digital conveyance counter-signing, and immutable blockchain deeds.
         </p>
       </div>
+
+      {loading && <div className="text-xs text-[#667085]">Loading live purchase petitions...</div>}
+      {error && <div className="text-xs text-[#B42318]">{error}</div>}
 
       {/* SCN-14: Completed Transfer Highlight Card */}
       {completedTransfer && (
@@ -80,16 +83,16 @@ export function Purchases() {
               <div>
                 <span className="text-[#667085] block">Transaction Hash:</span>
                 <span className="text-[#101828] font-bold">
-                  {completedTransfer.blockchain_tx_hash || "0x8f2a74c109e2b4f91d847c2098b1a3e"}...
+                  {completedTransfer.blockchain_tx_hash || "Unavailable"}
                 </span>
               </div>
               <div>
                 <span className="text-[#667085] block">Block Height:</span>
-                <span className="text-[#101828] font-bold">19,482,714</span>
+                <span className="text-[#667085] font-bold">Unavailable</span>
               </div>
               <div>
                 <span className="text-[#667085] block">Status:</span>
-                <span className="text-[#027A48] font-bold">Finalized (128 Confirmations)</span>
+                <span className="text-[#667085] font-bold">Unavailable</span>
               </div>
             </div>
           </div>
@@ -116,6 +119,7 @@ export function Purchases() {
       <div className="rounded-xl border border-[#D0D5DD] bg-white p-5 shadow-sm space-y-4">
         <h2 className="text-sm font-bold text-[#101828]">All Purchase Petitions</h2>
         <div className="divide-y divide-[#EAECF0]">
+          {!loading && !error && activePurchases.length === 0 && <div className="text-xs text-[#667085]">No purchase petitions are available for this identity.</div>}
           {activePurchases.map((p) => (
             <div
               key={p.request_id}

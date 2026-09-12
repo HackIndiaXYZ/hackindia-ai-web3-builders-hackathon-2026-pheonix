@@ -1,12 +1,14 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import mockData from "../../data/land-registry-ui-mock-data.json";
+import { useAuth } from "../../context/AuthContext.jsx";
+import { useLiveParcels } from "../../services/liveData.js";
 import { Layers, Search, ArrowRight, ShieldCheck, Scale, AlertTriangle, Landmark } from "lucide-react";
 import { formatArea, formatCurrencyINR } from "../../lib/utils.js";
 import { getStatusBadgeProps, getRiskBadgeProps } from "../../lib/parcelColors.js";
 
 export function RegistrarParcels() {
-  const parcels = mockData.parcels || [];
+  const { token } = useAuth();
+  const { data: parcels, loading, error } = useLiveParcels(token);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
 
@@ -49,6 +51,9 @@ export function RegistrarParcels() {
           <ArrowRight className="h-4 w-4" />
         </Link>
       </div>
+
+      {loading && <div className="text-xs text-slate-400">Loading live parcel records...</div>}
+      {error && <div className="text-xs text-rose-300">{error}</div>}
 
       {/* Filter and Search Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#080e1e]/90 p-3">
@@ -97,6 +102,7 @@ export function RegistrarParcels() {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
+              {!loading && !error && filteredParcels.length === 0 && <tr><td colSpan="7" className="p-6 text-center text-xs text-slate-400">No parcels match this filter.</td></tr>}
               {filteredParcels.map((parcel) => {
                 const statusBadge = getStatusBadgeProps(parcel.title_status);
                 const hasOverlap = parcel.overlap_findings?.length > 0;

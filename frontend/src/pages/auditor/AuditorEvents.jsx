@@ -1,13 +1,22 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { getDemoAuditEvents } from "../../lib/store.js";
+import { auditService, normalizeAuditEvent } from "../../services/liveData.js";
+import { useAuth } from "../../context/AuthContext.jsx";
 import { formatDate } from "../../lib/utils.js";
 import { FileSpreadsheet, Search, ArrowLeft, ShieldCheck, CheckCircle2 } from "lucide-react";
 
 export function AuditorEvents() {
   const { eventId: paramEventId } = useParams();
-  const events = getDemoAuditEvents();
+  const { token } = useAuth();
+  const [events, setEvents] = useState([]);
+  const [error, setError] = useState("");
   const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    auditService.list(token)
+      .then((items) => setEvents((items || []).map(normalizeAuditEvent)))
+      .catch((err) => setError(err.message));
+  }, [token]);
 
   const selectedEvent = paramEventId ? events.find((e) => e.id === paramEventId) : null;
 
@@ -70,6 +79,7 @@ export function AuditorEvents() {
 
   return (
     <div className="space-y-6 text-left animate-fade-slide-up">
+      {error && <div className="text-xs text-[#B42318]">{error}</div>}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#EAECF0] pb-4">
         <div>
           <h1 className="text-2xl font-bold text-[#101828]">Cryptographic Audit Ledger</h1>

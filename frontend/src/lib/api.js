@@ -9,7 +9,7 @@ const isDevServer =
 export const API_BASE =
   typeof window !== "undefined" &&
   (window.location.protocol === "file:" || isDevServer)
-    ? `http://${window.location.hostname || "localhost"}:5001/api`
+    ? `http://${window.location.hostname || "localhost"}:${window.location.port === "5173" ? "5000" : "5001"}/api`
     : "/api";
 
 export function authHeaders(token) {
@@ -75,4 +75,20 @@ export async function apiPost(path, body, token, isForm = false) {
     },
     token
   );
+}
+
+export async function login(username, role) {
+  return request("/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, role }),
+  });
+}
+
+export async function currentSession(token) {
+  return apiGet("/auth/me", token);
+}
+
+export async function logout(token) {
+  return apiPost("/auth/logout", {}, token);
 }

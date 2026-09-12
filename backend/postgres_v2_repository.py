@@ -64,7 +64,7 @@ class PostgresV2Repository:
         properties = {}
         with self._connect() as connection:
             with connection.cursor() as cursor:
-                cursor.execute("SELECT ulpin, ownership_type, frozen, survey_number, area_sqm, registration_office, last_registered_date, current_owner_user_id, transfer_history FROM parcels ORDER BY ulpin")
+                cursor.execute("SELECT p.ulpin, p.ownership_type, p.frozen, p.survey_number, p.area_sqm, p.registration_office, p.last_registered_date, p.current_owner_user_id, p.transfer_history, ST_AsGeoJSON(g.boundary) FROM parcels p LEFT JOIN parcel_geometries g ON g.parcel_id=p.ulpin ORDER BY p.ulpin")
                 rows = cursor.fetchall()
                 for row in rows:
                     owner_id = row[7]
@@ -75,7 +75,9 @@ class PostgresV2Repository:
                     owners = [{"name": item[0], "share_percent": item[1] / 100, "credential_status": item[2] or "ACTIVE", "wallet_address": item[3]} for item in cursor.fetchall()]
                     cursor.execute("SELECT COALESCE(u.display_name,u.identity_reference), n.status FROM nominees n JOIN users u ON u.id=n.nominee_user_id WHERE n.parcel_id=%s", (row[0],))
                     nominees = [{"name": item[0], "status": item[1]} for item in cursor.fetchall()]
-                    properties[row[0]] = {"ulpin": row[0], "current_owner": current_owner, "owners": owners, "ownership_type": row[1], "frozen": row[2], "survey_number": row[3], "area_sqm": float(row[4]) if row[4] is not None else None, "registration_office": row[5], "last_registered_date": row[6].isoformat() if row[6] else None, "transfer_history": row[8] or [], "nominees": nominees, "encumbrances": [], "disputes": [], "ownership_policy": {"required_approvals": len(owners) or 1, "total_owners": len(owners) or 1}}
+                    geometry = json.loads(row[9]) if row[9] else None
+                    boundary = geometry.get("coordinates", [[]])[0] if geometry else None
+                    properties[row[0]] = {"ulpin": row[0], "current_owner": current_owner, "owners": owners, "ownership_type": row[1], "frozen": row[2], "survey_number": row[3], "area_sqm": float(row[4]) if row[4] is not None else None, "registration_office": row[5], "last_registered_date": row[6].isoformat() if row[6] else None, "transfer_history": row[8] or [], "boundary": boundary, "encumbrances": [], "disputes": [], "ownership_policy": {"required_approvals": len(owners) or 1, "total_owners": len(owners) or 1}}
         return properties
 
     def create_transfer(self, parcel, buyer, document_hash, assessment_hash, actor):

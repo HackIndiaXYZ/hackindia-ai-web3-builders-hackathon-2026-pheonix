@@ -1,5 +1,4 @@
 import React from "react";
-import { resetAllDemoData } from "../lib/store.js";
 
 export class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -14,11 +13,6 @@ export class ErrorBoundary extends React.Component {
   componentDidCatch(error, errorInfo) {
     console.error("Uncaught application boundary error:", error, errorInfo);
   }
-
-  handleReset = () => {
-    resetAllDemoData();
-    window.location.href = "/";
-  };
 
   handleReload = () => {
     window.location.reload();
@@ -51,12 +45,6 @@ export class ErrorBoundary extends React.Component {
                 className="flex-1 rounded-lg bg-[#0B3A67] px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#082949] transition-colors"
               >
                 Reload Page
-              </button>
-              <button
-                onClick={this.handleReset}
-                className="flex-1 rounded-lg border border-[#D0D5DD] bg-white px-4 py-2.5 text-sm font-semibold text-[#344054] shadow-sm hover:bg-[#F9FAFB] transition-colors"
-              >
-                Reset Demo Data
               </button>
             </div>
           </div>

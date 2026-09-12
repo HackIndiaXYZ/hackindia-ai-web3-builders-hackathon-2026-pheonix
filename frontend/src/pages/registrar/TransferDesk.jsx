@@ -1,8 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import mockData from "../../data/land-registry-ui-mock-data.json" with { type: "json" };
 import { useAuth } from "../../context/AuthContext.jsx";
-import { getDemoTransfers, updateDemoTransfer, appendDemoAuditEvent } from "../../lib/store.js";
+import { transferService, useLiveParcels, useLiveTransfers } from "../../services/liveData.js";
 import { formatArea, formatCurrencyINR, formatDate } from "../../lib/utils.js";
 import { BoundaryOverlapSVG } from "../../components/BoundaryOverlapSVG.jsx";
 import {
@@ -25,10 +24,11 @@ import {
 
 export function TransferDesk() {
   const { requestId: paramRequestId } = useParams();
-  const { user, isRestricted } = useAuth();
+  const { user, token, isRestricted } = useAuth();
   const navigate = useNavigate();
 
-  const transfers = getDemoTransfers();
+  const { data: transfers, loading: transfersLoading, error: transfersError } = useLiveTransfers(token);
+  const { data: parcels, loading: parcelsLoading, error: parcelsError } = useLiveParcels(token);
   const defaultRequestId = paramRequestId || "TR-2026-003";
 
   const [selectedRequestId, setSelectedRequestId] = useState(defaultRequestId);
@@ -40,7 +40,6 @@ export function TransferDesk() {
     return transfers.find((t) => t.request_id === selectedRequestId) || transfers[0];
   }, [transfers, selectedRequestId]);
 
-  const parcels = mockData.parcels || [];
   const selectedParcel = useMemo(() => {
     return parcels.find((p) => p.ulpin === activeTransfer?.ulpin) || parcels[0];
   }, [parcels, activeTransfer]);
@@ -59,7 +58,7 @@ export function TransferDesk() {
   const quorumMet = approvedCount >= requiredApprovals;
 
   // Handle Registrar Approve
-  const handleApprove = () => {
+  const handleApprove = async () => {
     if (isFrozen) {
       alert("ACTION PROHIBITED (SCN-10): Court injunction freeze prevents all registrar actions.");
       return;
@@ -73,21 +72,11 @@ export function TransferDesk() {
       return;
     }
 
-    const updated = updateDemoTransfer(activeTransfer.request_id, {
-      status: "COMMITTED",
-      adjudicated_by: user?.badge || "GOV-REG-0182",
-      adjudicated_at: new Date().toISOString(),
-      override_reason: overrideReason.trim() || null,
-    });
-
-    appendDemoAuditEvent({
-      action: "TRANSFER_ADJUDICATED_APPROVED",
-      ulpin: activeTransfer.ulpin,
-      actor_id: user?.badge || "GOV-REG-0182",
-      details: `Transfer ${activeTransfer.request_id} approved. Consideration: ₹${activeTransfer.agreed_price_inr}. Override: ${overrideReason || "None"}.`,
-    });
-
-    setActionNotice("Conveyance petition approved and sealed by Sub-Registrar.");
+    try {
+      await transferService.approve(activeTransfer.request_id, { override_reason: overrideReason.trim() || null }, token);
+      await transferService.submit(activeTransfer.request_id, token);
+      setActionNotice("Conveyance petition submitted to the live registry outbox.");
+    } catch (err) { setActionNotice(err.message || "The registry could not approve this petition."); }
   };
 
   const handleReject = () => {
@@ -95,21 +84,12 @@ export function TransferDesk() {
       alert("ACTION PROHIBITED (SCN-10): Court injunction freeze prevents all registrar actions.");
       return;
     }
-    const updated = updateDemoTransfer(activeTransfer.request_id, {
-      status: "REJECTED",
-      adjudicated_by: user?.badge || "GOV-REG-0182",
-      adjudicated_at: new Date().toISOString(),
-    });
-
-    appendDemoAuditEvent({
-      action: "TRANSFER_ADJUDICATED_REJECTED",
-      ulpin: activeTransfer.ulpin,
-      actor_id: user?.badge || "GOV-REG-0182",
-      details: `Transfer ${activeTransfer.request_id} rejected by Sub-Registrar.`,
-    });
-
-    setActionNotice("Conveyance petition has been rejected.");
+    setActionNotice("Live registry does not expose a registrar rejection endpoint for this petition.");
   };
+
+  if (transfersLoading || parcelsLoading) return <div className="text-xs text-[#667085]">Loading live transfer adjudication data...</div>;
+  if (transfersError || parcelsError) return <div className="text-xs text-[#B42318]">{transfersError || parcelsError}</div>;
+  if (!activeTransfer || !selectedParcel) return <div className="text-xs text-[#667085]">No live transfer petition is available for adjudication.</div>;
 
   return (
     <div className="space-y-6 text-left animate-fade-slide-up">

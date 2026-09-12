@@ -1,14 +1,19 @@
-import React, { useState } from "react";
+import React from "react";
 import { useParams, Link } from "react-router-dom";
-import { getDemoTransfers } from "../../lib/store.js";
+import { useAuth } from "../../context/AuthContext.jsx";
+import { useLiveTransfers } from "../../services/liveData.js";
 import { formatCurrencyINR, formatDate } from "../../lib/utils.js";
 import { Inbox, ArrowLeft, ShieldCheck, AlertTriangle } from "lucide-react";
 
 export function AuditorTransfers() {
   const { requestId: paramRequestId } = useParams();
-  const transfers = getDemoTransfers();
+  const { token } = useAuth();
+  const { data: transfers, loading, error } = useLiveTransfers(token);
 
   const selectedTransfer = paramRequestId ? transfers.find((t) => t.request_id === paramRequestId) : null;
+
+  if (loading) return <div className="text-xs text-[#667085]">Loading live transfer petitions...</div>;
+  if (error) return <div className="text-xs text-[#B42318]">{error}</div>;
 
   if (selectedTransfer) {
     return (

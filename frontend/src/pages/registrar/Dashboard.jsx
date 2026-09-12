@@ -1,11 +1,10 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import mockData from "../../data/land-registry-ui-mock-data.json" with { type: "json" };
+import { workspaceService, transferService, normalizeTransfer } from "../../services/liveData.js";
 import { KpiCard } from "../../components/KpiCard.jsx";
 import { StatusChip } from "../../components/StatusChip.jsx";
-import { useAuth } from "../../context/AuthContext.jsx";
 import { formatArea, formatCurrencyINR, formatDate } from "../../lib/utils.js";
-import { getDemoTransfers } from "../../lib/store.js";
+import { useAuth } from "../../context/AuthContext.jsx";
 import {
   ShieldAlert,
   ArrowRightLeft,
@@ -21,24 +20,17 @@ import {
 } from "lucide-react";
 
 export function RegistrarDashboard() {
-  const { user } = useAuth();
-  const kpis = mockData.dashboard_views?.REGISTRAR?.kpis || {
-    parcels: 12,
-    pending_transfers: 6,
-    high_risk: 2,
-    succession_cases: 1,
-    frozen_parcels: 1,
-  };
-
-  const transfers = getDemoTransfers();
-
-  // Priority items verbatim: ["TR-2026-003", "TR-2026-002", "SUC-2026-001", "TR-2026-004"]
-  const priorityQueueIds = mockData.dashboard_views?.REGISTRAR?.priority_items || [
-    "TR-2026-003",
-    "TR-2026-002",
-    "SUC-2026-001",
-    "TR-2026-004",
-  ];
+  const { user, token } = useAuth();
+  const [workspace, setWorkspace] = useState({ pending_transfers: [], pending_successions: [], frozen_parcels: [] });
+  const [transfers, setTransfers] = useState([]);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    Promise.all([workspaceService.registrar(token), transferService.list(token)])
+      .then(([data, items]) => { setWorkspace(data || {}); setTransfers((items || []).map(normalizeTransfer)); })
+      .catch((err) => setError(err.message));
+  }, [token]);
+  const priorityQueueIds = transfers.slice(0, 4).map((item) => item.request_id);
+  const kpis = { parcels: 0, pending_transfers: workspace.pending_transfers?.length || 0, high_risk: 0, succession_cases: workspace.pending_successions?.length || 0, frozen_parcels: workspace.frozen_parcels?.length || 0 };
 
   return (
     <div className="space-y-6 text-left animate-fade-slide-up">
@@ -62,6 +54,7 @@ export function RegistrarDashboard() {
           </Link>
         </div>
       </div>
+      {error && <div className="text-xs text-[#B42318]">{error}</div>}
 
       {/* Verbatim Registrar KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">

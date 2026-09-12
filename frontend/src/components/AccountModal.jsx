@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { X, User, Shield, CheckCircle2, Key, Info, Building } from "lucide-react";
 
 /**
- * Read-Only Account Modal showing simulated profiles from land-registry-ui-mock-data.json
+ * Read-only account modal for the current live session.
  */
 export function AccountModal({ users = [], onClose }) {
   const [selectedUserIndex, setSelectedUserIndex] = useState(0);

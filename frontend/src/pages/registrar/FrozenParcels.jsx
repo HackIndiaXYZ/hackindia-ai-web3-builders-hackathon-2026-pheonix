@@ -1,11 +1,13 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import mockData from "../../data/land-registry-ui-mock-data.json" with { type: "json" };
+import { useAuth } from "../../context/AuthContext.jsx";
+import { useLiveParcels } from "../../services/liveData.js";
 import { formatArea, formatDate } from "../../lib/utils.js";
 import { Lock, AlertTriangle, ArrowRight, ShieldAlert } from "lucide-react";
 
 export function FrozenParcels() {
-  const parcels = mockData.parcels || [];
+  const { token } = useAuth();
+  const { data: parcels, loading, error } = useLiveParcels(token);
   const frozen = parcels.filter((p) => p.title_status === "FROZEN" || p.ulpin === "UP-NOI-0009-DISPUTED");
 
   return (
@@ -18,6 +20,9 @@ export function FrozenParcels() {
           Statutory register of parcels restrained by High Court or District Court injunction orders. All conveyance actions are locked.
         </p>
       </div>
+
+      {loading && <div className="text-xs text-[#667085]">Loading live parcel records...</div>}
+      {error && <div className="text-xs text-[#B42318]">{error}</div>}
 
       {/* SCN-10: Injunction Warning */}
       <div className="rounded-xl border-2 border-[#D92D20] bg-[#FEF3F2] p-5 text-xs text-[#B42318] space-y-2">
@@ -36,6 +41,7 @@ export function FrozenParcels() {
       </div>
 
       <div className="space-y-4">
+        {!loading && !error && frozen.length === 0 && <div className="text-xs text-[#667085]">No frozen parcels are currently reported by the registry.</div>}
         {frozen.map((p) => (
           <div
             key={p.ulpin}

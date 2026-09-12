@@ -1,14 +1,14 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext.jsx";
-import mockData from "../../data/land-registry-ui-mock-data.json";
+import { useLiveParcels } from "../../services/liveData.js";
 import { Home, MapPin, ArrowRight, ShieldCheck, AlertTriangle, Layers, Landmark } from "lucide-react";
 import { formatArea, formatCurrencyINR } from "../../lib/utils.js";
 import { getStatusBadgeProps, getRiskBadgeProps } from "../../lib/parcelColors.js";
 
 export function CitizenProperties() {
-  const { user } = useAuth();
-  const parcels = mockData.parcels || [];
+  const { user, token } = useAuth();
+  const { data: parcels, loading, error } = useLiveParcels(token);
 
   const userParcels = React.useMemo(() => {
     if (!user) return [];
@@ -44,7 +44,9 @@ export function CitizenProperties() {
         </Link>
       </div>
 
-      {userParcels.length === 0 ? (
+      {loading && <div className="text-xs text-slate-400">Loading live property records...</div>}
+      {error && <div className="text-xs text-rose-300">{error}</div>}
+      {!loading && !error && userParcels.length === 0 ? (
         <div className="rounded-3xl border border-white/10 bg-navy-900/60 p-12 text-center space-y-3">
           <Home className="mx-auto h-12 w-12 text-slate-500" />
           <h3 className="font-semibold text-white">No Properties Attached</h3>

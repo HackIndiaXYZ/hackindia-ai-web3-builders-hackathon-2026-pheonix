@@ -1,10 +1,12 @@
 import React, { useState } from "react";
-import { getDemoAuditEvents } from "../../lib/store.js";
+import { useAuth } from "../../context/AuthContext.jsx";
+import { useLiveAudit } from "../../services/liveData.js";
 import { formatDate } from "../../lib/utils.js";
 import { History, Search, ShieldCheck, Filter } from "lucide-react";
 
 export function AuditLog() {
-  const events = getDemoAuditEvents();
+  const { token } = useAuth();
+  const { data: events, loading, error } = useLiveAudit(token);
   const [query, setQuery] = useState("");
 
   const filtered = events.filter(
@@ -31,6 +33,9 @@ export function AuditLog() {
           {filtered.length} Recorded Events
         </span>
       </div>
+
+      {loading && <div className="text-xs text-[#667085]">Loading live audit events...</div>}
+      {error && <div className="text-xs text-[#B42318]">{error}</div>}
 
       {/* Search Filter */}
       <div className="rounded-xl border border-[#D0D5DD] bg-white p-3 shadow-sm flex items-center gap-2">
@@ -59,6 +64,7 @@ export function AuditLog() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F2F4F7]">
+              {!loading && !error && filtered.length === 0 && <tr><td colSpan="6" className="p-6 text-center text-xs text-[#667085]">No audit events are available.</td></tr>}
               {filtered.map((e) => (
                 <tr key={e.id} className="hover:bg-[#F8FAFC] transition-colors">
                   <td className="py-3 px-4 font-mono font-bold text-[#0B3A67]">

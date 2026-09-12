@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext.jsx";
-import mockData from "../../data/land-registry-ui-mock-data.json" with { type: "json" };
+import { useLiveParcels, useLiveTransfers } from "../../services/liveData.js";
 import { KpiCard } from "../../components/KpiCard.jsx";
 import { StatusChip } from "../../components/StatusChip.jsx";
 import { formatArea } from "../../lib/utils.js";
@@ -22,10 +22,9 @@ import {
 } from "lucide-react";
 
 export function CitizenDashboard() {
-  const { user, isDeceased } = useAuth();
-  const parcels = mockData.parcels || [];
-  const transferRequests = mockData.transfer_requests || [];
-  const dashboardViews = mockData.dashboard_views || {};
+  const { user, token, isDeceased } = useAuth();
+  const { data: parcels, loading: parcelsLoading, error: parcelsError } = useLiveParcels(token);
+  const { data: transferRequests, loading: transfersLoading, error: transfersError } = useLiveTransfers(token);
 
   // User roles list or default to OWNER
   const userRoles = Array.isArray(user?.roles) ? user.roles : ["OWNER"];
@@ -34,8 +33,8 @@ export function CitizenDashboard() {
 
   const [selectedRoleTab, setSelectedRoleTab] = useState(initialRole);
 
-  const roleKpis = dashboardViews[selectedRoleTab]?.kpis || dashboardViews["OWNER"]?.kpis;
-  const rolePriorityItems = dashboardViews[selectedRoleTab]?.priority_items || [];
+  const roleKpis = null;
+  const rolePriorityItems = [];
 
   // User's owned parcels
   const userParcels = React.useMemo(() => {
@@ -60,6 +59,8 @@ export function CitizenDashboard() {
 
   return (
     <div className="space-y-6 animate-fade-slide-up text-left">
+      {(parcelsLoading || transfersLoading) && <div className="text-xs text-[#667085]">Loading live citizen records...</div>}
+      {(parcelsError || transfersError) && <div className="text-xs text-[#B42318]">{parcelsError || transfersError}</div>}
       {/* Top Welcome Card */}
       <div className="rounded-xl border border-[#D0D5DD] bg-white p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -137,25 +138,25 @@ export function CitizenDashboard() {
             <>
               <KpiCard
                 title="Owned Parcels"
-                value={roleKpis?.owned_parcels ?? 3}
+                value={roleKpis?.owned_parcels ?? userParcels.length}
                 icon={Building2}
                 trend="All registered in Record of Rights"
               />
               <KpiCard
                 title="Pending Approvals"
-                value={roleKpis?.pending_approvals ?? 2}
+                value={roleKpis?.pending_approvals ?? activeTransfers.filter((t) => t.status !== "COMMITTED").length}
                 icon={ArrowRightLeft}
                 trend="Requires seller quorum"
               />
               <KpiCard
                 title="Deed Notifications"
-                value={roleKpis?.notifications ?? 4}
+                value={roleKpis?.notifications ?? "Unavailable"}
                 icon={Bell}
                 trend="Unread statutory alerts"
               />
               <KpiCard
                 title="Avg Title Health"
-                value={roleKpis?.title_health_avg ?? 91}
+                value={roleKpis?.title_health_avg ?? "Unavailable"}
                 unit="/ 100"
                 icon={ShieldCheck}
                 trend="Cadastral Standing"
@@ -167,25 +168,25 @@ export function CitizenDashboard() {
             <>
               <KpiCard
                 title="Associated Parcels"
-                value={roleKpis?.associated_properties ?? 2}
+                value={roleKpis?.associated_properties ?? userParcels.length}
                 icon={Building2}
                 trend="Dormant rights active"
               />
               <KpiCard
                 title="Transfer Alerts"
-                value={roleKpis?.transfer_alerts ?? 1}
+                value={roleKpis?.transfer_alerts ?? "Unavailable"}
                 icon={Bell}
                 trend="Statutory nominee notice"
               />
               <KpiCard
                 title="Succession Cases"
-                value={roleKpis?.succession_cases ?? 1}
+                value={roleKpis?.succession_cases ?? "Unavailable"}
                 icon={FileText}
                 trend="Case SUC-2026-001 active"
               />
               <KpiCard
                 title="Successor Keys"
-                value={roleKpis?.active_successor_keys ?? 1}
+                value={roleKpis?.active_successor_keys ?? "Unavailable"}
                 icon={KeyRound}
                 trend="Rotation pending approval"
               />
@@ -196,25 +197,25 @@ export function CitizenDashboard() {
             <>
               <KpiCard
                 title="Saved Properties"
-                value={roleKpis?.saved_properties ?? 4}
+                value={roleKpis?.saved_properties ?? "Unavailable"}
                 icon={Building2}
                 trend="Cadastral watchlist"
               />
               <KpiCard
                 title="Active Purchases"
-                value={roleKpis?.active_purchases ?? 2}
+                value={roleKpis?.active_purchases ?? activeTransfers.length}
                 icon={ArrowRightLeft}
                 trend="Petitions in progress"
               />
               <KpiCard
                 title="Completed Purchases"
-                value={roleKpis?.completed_purchases ?? 1}
+                value={roleKpis?.completed_purchases ?? activeTransfers.filter((t) => t.status === "COMMITTED").length}
                 icon={CheckCircle2}
                 trend="Deed certificate issued"
               />
               <KpiCard
                 title="Pending Acceptance"
-                value={roleKpis?.pending_acceptance ?? 0}
+                value={roleKpis?.pending_acceptance ?? activeTransfers.filter((t) => t.status === "PENDING_BUYER_ACCEPTANCE").length}
                 icon={UserCheck}
                 trend="Ready for counter-signing"
               />
