@@ -110,6 +110,7 @@ MST_RPC_URL = _text("MST_RPC_URL")
 MST_CHAIN_ID = _number("MST_CHAIN_ID", 91562037)
 MST_WALLET_ADDRESS = _text("MST_WALLET_ADDRESS")
 MST_PRIVATE_KEY = _text("MST_PRIVATE_KEY")
+KMS_KEY_ID = _text("KMS_KEY_ID")
 
 # ----------------------------------------------------------------- worker ----
 OUTBOX_POLL_INTERVAL = _number("OUTBOX_POLL_INTERVAL", 5)
@@ -147,15 +148,20 @@ def validate():
     if CHAIN_MODE not in {"mock", "live"}:
         problems.append(f"CHAIN_MODE must be 'mock' or 'live', got {CHAIN_MODE!r}")
 
-    mst_values = (MST_RPC_URL, MST_WALLET_ADDRESS, MST_PRIVATE_KEY)
+    mst_values = (MST_RPC_URL, MST_WALLET_ADDRESS)
     if any(mst_values) and not all(mst_values):
         problems.append(
-            "MST_RPC_URL, MST_WALLET_ADDRESS and MST_PRIVATE_KEY must be set together"
+            "MST_RPC_URL and MST_WALLET_ADDRESS must be set together"
         )
-    if CHAIN_MODE == "live" and not all(mst_values):
-        problems.append(
-            "CHAIN_MODE=live requires MST_RPC_URL, MST_WALLET_ADDRESS and MST_PRIVATE_KEY"
-        )
+    if CHAIN_MODE == "live":
+        if not all(mst_values):
+            problems.append(
+                "CHAIN_MODE=live requires MST_RPC_URL and MST_WALLET_ADDRESS"
+            )
+        if not MST_PRIVATE_KEY and not KMS_KEY_ID:
+            problems.append(
+                "CHAIN_MODE=live requires either MST_PRIVATE_KEY (development) or KMS_KEY_ID (production)"
+            )
     if MST_CHAIN_ID <= 0:
         problems.append("MST_CHAIN_ID must be greater than 0")
 
@@ -172,6 +178,11 @@ def validate():
         problems.append("OUTBOX_MAX_ATTEMPTS must be greater than 0")
 
     if is_production_posture():
+        if CHAIN_MODE != "live":
+            problems.append("CHAIN_MODE must be 'live' when DATABASE_URL is configured (mock blockchain disabled in production)")
+        if MST_PRIVATE_KEY:
+            problems.append("MST_PRIVATE_KEY cannot be used in production. Use KMS_KEY_ID with ProductionSecureSigner instead.")
+        
         # Persisting real state means sessions outlive the process, so a
         # guessable signing secret is now a real vulnerability rather than a
         # demo convenience.

@@ -161,18 +161,20 @@ export function TransferPage({ auth }) {
     setError(""); setBusy(true);
     try {
       const data = await apiPost(
-        "/transfers/" + encodeURIComponent(assessment.ulpin) + "/commit",
+        "/v2/transfers",
         {
+          parcel_id: form.ulpin.trim(),
           buyer: form.buyer.trim(),
-          // The assessment id is what authorises the write — the backend
-          // refuses any commit without one.
-          assessment_id: assessment.assessment_id,
-          doc_hash: "0x" + Math.random().toString(16).slice(2),
-          ...(withOverride ? { override: true, override_reason: overrideReason } : {}),
+          assessment_hash: assessment.assessment_id,
+          document_hash: "0x" + Math.random().toString(16).slice(2),
         },
         auth.token
       );
       setCommitResult(data);
+      // Let the user know it started the V2 workflow
+      setTimeout(() => {
+        navigate("/workflow");
+      }, 3000);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -316,41 +318,13 @@ export function TransferPage({ auth }) {
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
                     <div className="flex items-center gap-2 text-sm font-medium text-risk-approved">
                       <FiCheckCircle className="h-4 w-4" />
-                      Committed — block {commitResult.onchain_entry.block_number}
+                      V2 Transfer Workflow Initiated
                     </div>
                     <div className="font-mono text-xs text-zinc-500 break-all">
-                      {commitResult.onchain_entry.tx_hash}
+                      Transfer ID: {commitResult.transfer_id}
                     </div>
+                    <div className="text-sm text-zinc-400">Redirecting to the multi-party workflow...</div>
 
-                    {commitResult.ai_verified === false && (
-                      <div className="rounded-lg border border-risk-flagged/30 bg-risk-flagged/5 p-3 text-xs text-risk-flagged">
-                        Recorded on-chain with <span className="font-mono">aiVerified=false</span> —
-                        this transfer was authorised by a registrar, not cleared by the
-                        fraud engine. The override is permanent in the event log.
-                      </div>
-                    )}
-
-                    {!certResult ? (
-                      <button
-                        onClick={mint}
-                        disabled={busy}
-                        className="w-full rounded-lg border border-accent bg-accent/10 py-2.5 text-sm font-semibold text-accent shadow-glow-sm transition-colors hover:bg-accent/20 disabled:opacity-40"
-                      >
-                        Mint Verified Clean Title certificate
-                      </button>
-                    ) : (
-                      <div className="rounded-lg border border-violet-400/30 bg-violet-400/5 p-4">
-                        <div className="text-sm font-semibold text-violet-300">
-                          Certificate #{certResult.token_id}
-                          {certResult.already_minted ? " (already issued)" : " minted"}
-                        </div>
-                        <div className="mt-1 text-xs text-zinc-400">owner {certResult.owner}</div>
-                        <div className="mt-1 font-mono text-xs text-zinc-500 break-all">{certResult.tx_hash}</div>
-                        <div className="mt-2 text-xs text-zinc-600">
-                          Non-transferable — attests this parcel had a clean, verified on-chain transfer as of this block.
-                        </div>
-                      </div>
-                    )}
                   </motion.div>
                 ) : assessment.status === "HIGH_RISK" ? (
                   <div className="space-y-3">
@@ -392,16 +366,11 @@ export function TransferPage({ auth }) {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {/* Only a clean auto-approval is recorded as engine-cleared,
-                        so a registrar committing a FLAGGED transfer should know
-                        before clicking that it lands as aiVerified=false. */}
                     {assessment.status === "FLAGGED" && (
                       <div className="flex items-start gap-2 rounded-lg border border-risk-flagged/25 bg-risk-flagged/[0.04] p-3 text-xs text-risk-flagged">
                         <FiAlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                         <span>
-                          Flagged for manual review. Committing records{" "}
-                          <span className="font-mono">aiVerified=false</span> on-chain —
-                          your authorisation, not the engine's.
+                          Flagged for manual review. Creating V2 Transfer will require Registrar approval.
                         </span>
                       </div>
                     )}
@@ -410,7 +379,7 @@ export function TransferPage({ auth }) {
                       disabled={busy}
                       className="w-full rounded-lg bg-accent py-2.5 text-sm font-semibold text-black shadow-glow-sm transition-colors hover:bg-accent-hover disabled:opacity-40"
                     >
-                      {busy ? "Committing…" : "Commit to chain"}
+                      {busy ? "Initiating…" : "Start V2 Transfer Workflow"}
                     </button>
                   </div>
                 )}

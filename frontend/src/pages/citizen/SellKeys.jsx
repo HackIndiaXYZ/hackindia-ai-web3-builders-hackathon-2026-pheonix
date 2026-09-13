@@ -53,7 +53,7 @@ export function SellKeys() {
         transferRequestId: `TR-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
         scope: "FULL_CONVEYANCE",
         ttlHours: 24,
-      });
+      }, token);
       const updated = getStoredSellTokens();
       setTokens(updated);
       setSelectedToken(generated);

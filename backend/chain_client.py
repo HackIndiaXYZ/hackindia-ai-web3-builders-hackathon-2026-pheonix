@@ -44,6 +44,8 @@ RPC_URL = os.environ.get("AMOY_RPC_URL")
 PRIVATE_KEY = os.environ.get("PRIVATE_KEY")
 CONTRACT_ADDRESS = os.environ.get("CONTRACT_ADDRESS")
 DEPLOY_BLOCK = int(os.environ.get("DEPLOY_BLOCK", "0"))
+KMS_KEY_ID = os.environ.get("KMS_KEY_ID")
+WALLET_ADDRESS = os.environ.get("WALLET_ADDRESS")
 
 _DEFAULT_ABI_PATH = os.path.join(
     os.path.dirname(__file__), "..", "contracts", "artifacts",
@@ -58,29 +60,79 @@ def _load_abi():
 
 
 def _require_configured():
-    missing = [name for name, val in [
-        ("AMOY_RPC_URL", RPC_URL), ("PRIVATE_KEY", PRIVATE_KEY),
-        ("CONTRACT_ADDRESS", CONTRACT_ADDRESS),
-    ] if not val]
+    if KMS_KEY_ID:
+        missing = [name for name, val in [
+            ("AMOY_RPC_URL", RPC_URL), ("CONTRACT_ADDRESS", CONTRACT_ADDRESS),
+            ("WALLET_ADDRESS", WALLET_ADDRESS)
+        ] if not val]
+    else:
+        missing = [name for name, val in [
+            ("AMOY_RPC_URL", RPC_URL), ("PRIVATE_KEY", PRIVATE_KEY),
+            ("CONTRACT_ADDRESS", CONTRACT_ADDRESS),
+        ] if not val]
+
     if missing:
         raise RuntimeError(
             f"chain_client is missing required env vars: {', '.join(missing)}. "
             f"Set CHAIN_MODE=mock to use the offline demo chain instead."
         )
 
+import abc
+
+class MSTSigner(abc.ABC):
+    @abc.abstractmethod
+    def sign_transaction(self, tx_dict: dict):
+        pass
+
+    @abc.abstractmethod
+    def get_address(self) -> str:
+        pass
+
+class DevelopmentSigner(MSTSigner):
+    def __init__(self, private_key: str):
+        if not private_key:
+            raise ValueError("PRIVATE_KEY must be provided for DevelopmentSigner")
+        self.account = Account.from_key(private_key)
+
+    def sign_transaction(self, tx_dict: dict):
+        return self.account.sign_transaction(tx_dict)
+
+    def get_address(self) -> str:
+        return self.account.address
+
+class ProductionSecureSigner(MSTSigner):
+    def __init__(self, kms_key_id: str, wallet_address: str):
+        if not kms_key_id or not wallet_address:
+            raise ValueError("KMS_KEY_ID and WALLET_ADDRESS must be provided for ProductionSecureSigner")
+        self.kms_key_id = kms_key_id
+        self.wallet_address = Web3.to_checksum_address(wallet_address)
+
+    def sign_transaction(self, tx_dict: dict):
+        # Mock HSM integration for production
+        raise NotImplementedError(
+            f"Production HSM integration (KMS key {self.kms_key_id}) is mocked and not fully implemented."
+        )
+
+    def get_address(self) -> str:
+        return self.wallet_address
+
+def get_mst_signer() -> MSTSigner:
+    if KMS_KEY_ID:
+        return ProductionSecureSigner(KMS_KEY_ID, WALLET_ADDRESS)
+    return DevelopmentSigner(PRIVATE_KEY)
 
 _w3 = None
 _contract = None
-_account = None
+_signer = None
 
 
 def _client():
     """Lazily initializes the web3 connection on first real use, rather than
     at import time — so importing this module doesn't crash a mock-mode run
     that never calls into it."""
-    global _w3, _contract, _account
+    global _w3, _contract, _signer
     if _contract is not None:
-        return _w3, _contract, _account
+        return _w3, _contract, _signer
 
     _require_configured()
     _w3 = Web3(Web3.HTTPProvider(RPC_URL))
@@ -88,8 +140,8 @@ def _client():
         raise RuntimeError(f"Could not connect to RPC at {RPC_URL}")
 
     _contract = _w3.eth.contract(address=Web3.to_checksum_address(CONTRACT_ADDRESS), abi=_load_abi())
-    _account = Account.from_key(PRIVATE_KEY)
-    return _w3, _contract, _account
+    _signer = get_mst_signer()
+    return _w3, _contract, _signer
 
 
 def ulpin_to_hash(ulpin: str) -> bytes:
@@ -114,10 +166,10 @@ def _doc_hash_bytes(doc_hash: str) -> bytes:
 def _send(fn):
     """Signs and sends a state-changing contract call, waits for the receipt.
     Uses EIP-1559 style gas fields, which Polygon Amoy supports."""
-    w3, _, account = _client()
+    w3, _, signer = _client()
     tx = fn.build_transaction({
-        "from": account.address,
-        "nonce": w3.eth.get_transaction_count(account.address),
+        "from": signer.get_address(),
+        "nonce": w3.eth.get_transaction_count(signer.get_address()),
         "chainId": w3.eth.chain_id,
         "maxPriorityFeePerGas": w3.to_wei("30", "gwei"),
         "maxFeePerGas": w3.eth.gas_price + w3.to_wei("30", "gwei"),
@@ -130,7 +182,7 @@ def _send(fn):
     except Exception:
         tx["gas"] = 300_000  # conservative fallback if estimation itself fails
 
-    signed = account.sign_transaction(tx)
+    signed = signer.sign_transaction(tx)
     tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
     return receipt

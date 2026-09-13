@@ -69,7 +69,7 @@ export function MyProperty() {
         transferRequestId: requestId || `TR-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`,
         scope: "FULL_CONVEYANCE",
         ttlHours: 24,
-      });
+      }, token);
 
       setTokens(getStoredSellTokens());
       setActiveTokenModal(generated);

@@ -60,7 +60,7 @@
     "buyer": "Deepak Nair",
     "claimed_area_sqm": 1200,
     "transaction_date": "2026-09-08",
-    "claimed_boundary": [[0, 0], [50, 0], [50, 30], [0, 30]],
+    "claimed_boundary": [[77.50085, 28.47185], [77.50215, 28.47185], [77.50215, 28.47222], [77.50085, 28.47222]],
     "note": "Boundary creep — redrawn survey quietly extends 10m into neighboring UP-0002-CLEAN"
   },
   {

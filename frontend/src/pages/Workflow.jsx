@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { apiPost } from "../lib/api.js";
+import { walletCredentialService } from "../services/walletCredentialService.js";
+import { ethers } from "ethers";
 
 const input = "w-full rounded-lg border border-white/10 bg-base-800 px-3 py-2 font-mono text-sm text-white outline-none focus:border-accent/50";
 
@@ -14,9 +16,29 @@ export function WorkflowPage({ auth }) {
     try { setTransfer(await apiPost("/v2/transfers", { parcel_id: parcelId, buyer, document_hash: "demo-document-hash", assessment_hash: "demo-assessment-hash" }, auth.token)); }
     catch (err) { setError(err.message); } finally { setBusy(false); }
   };
+  const [privateKey, setPrivateKey] = useState("");
+  
   const approve = async () => {
     setError(""); setBusy(true);
-    try { setTransfer(await apiPost(`/v2/transfers/${transfer.transfer_id}/approve`, {}, auth.token)); }
+    try { 
+      if (auth.user.role === "OWNER") {
+        if (!privateKey) throw new Error("Private key is required for simulated wallet signing");
+        // 1. Request challenge
+        const challenge = await walletCredentialService.requestTransferApprovalChallenge(transfer.transfer_id, auth.token);
+        // 2. Sign EIP-712 payload
+        const wallet = new ethers.Wallet(privateKey);
+        const signature = await wallet.signTypedData(
+          challenge.typed_data.domain,
+          challenge.typed_data.types,
+          challenge.typed_data.message
+        );
+        // 3. Submit signature
+        const updated = await walletCredentialService.submitTransferApprovalSignature(challenge.challenge_id, signature, auth.token);
+        setTransfer(updated);
+      } else {
+        setTransfer(await apiPost(`/v2/transfers/${transfer.transfer_id}/approve`, {}, auth.token)); 
+      }
+    }
     catch (err) { setError(err.message); } finally { setBusy(false); }
   };
   const submit = async () => {
@@ -43,7 +65,13 @@ export function WorkflowPage({ auth }) {
         <div className="mt-4 font-mono text-xs text-accent">{transfer.transfer_id}</div>
         <div className="mt-2 text-lg font-semibold text-white">{transfer.status}</div>
         <div className="mt-5 space-y-3">{steps.map((step) => <div key={step} className={`rounded-lg border p-3 text-sm ${transfer.status === step ? "border-accent/50 bg-accent/10 text-white" : "border-white/10 text-zinc-500"}`}><span className="font-mono text-xs">{step}</span>{step === "OWNER_APPROVAL" && <div className="mt-1">{transfer.approvals.length}/{transfer.required_approvals} owner approvals</div>}{step === "REGISTRAR_REVIEW" && transfer.registrar_approval && <div className="mt-1">Approved by {transfer.registrar_approval.actor}</div>}{step === "BUYER_ACCEPTANCE" && <div className="mt-1">Buyer: {transfer.buyer}</div>}</div>)}</div>
-        {auth.user?.role === "OWNER" && transfer.status === "OWNER_APPROVAL" && <p className="mt-5 rounded-lg border border-risk-flagged/30 bg-risk-flagged/5 p-3 text-xs text-risk-flagged">Owner approval must be signed by the linked wallet using the EIP-712 approval challenge API. This demo UI does not access private keys or browser wallets.</p>}
+        {auth.user?.role === "OWNER" && transfer.status === "OWNER_APPROVAL" && (
+          <div className="mt-5 space-y-3 rounded-lg border border-accent/30 bg-accent/5 p-4">
+            <p className="text-xs text-accent">Simulated Wallet: Sign EIP-712 approval</p>
+            <input className={input} type="password" value={privateKey} onChange={(e) => setPrivateKey(e.target.value)} placeholder="0x... (Private Key)" />
+            <button onClick={approve} disabled={busy || !privateKey} className="w-full rounded-lg border border-accent bg-accent/20 py-2.5 text-sm font-semibold text-accent disabled:opacity-40">Sign & Approve as {auth.user.role}</button>
+          </div>
+        )}
         {auth.user && auth.user.role !== "OWNER" && transfer.status !== "READY_TO_COMMIT" && transfer.status !== "COMPLETED" && <button onClick={approve} disabled={busy} className="mt-5 w-full rounded-lg border border-accent bg-accent/10 py-2.5 text-sm font-semibold text-accent disabled:opacity-40">Approve as {auth.user.role}</button>}
         {auth.user?.role === "REGISTRAR" && transfer.status === "READY_TO_COMMIT" && <button onClick={submit} disabled={busy} className="mt-5 w-full rounded-lg bg-accent py-2.5 text-sm font-semibold text-black disabled:opacity-40">Submit and confirm ledger event</button>}
       </>}

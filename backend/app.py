@@ -73,7 +73,7 @@ from v2_registry import V2Registry
 #
 # Both modules expose the exact same function names, so nothing else in this
 # file needs to know which one is active.
-CHAIN_MODE = os.environ.get("CHAIN_MODE", "mock").lower()
+CHAIN_MODE = config.CHAIN_MODE
 if CHAIN_MODE == "live":
     from blockchain import mst_chain_adapter as chain
 else:

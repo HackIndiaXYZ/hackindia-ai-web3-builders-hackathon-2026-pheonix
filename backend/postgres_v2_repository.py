@@ -274,6 +274,12 @@ class PostgresV2Repository:
                     transfer = self._transfer(cursor, transfer_id, lock=True)
                     if not transfer or transfer["status"] != "MST_PENDING_CONFIRMATION":
                         raise ValueError("transfer has no submitted transaction awaiting confirmation")
+                    
+                    # Verify MST event was indexed by the blockchain indexer
+                    cursor.execute("SELECT event_id FROM blockchain_events WHERE tx_hash=%s AND transfer_id=%s", (transfer["blockchain_tx"], transfer_id))
+                    if not cursor.fetchone():
+                        raise ValueError("transfer blockchain event has not been indexed yet")
+                        
                     cursor.execute("UPDATE ownerships SET active=false WHERE parcel_id=%s", (transfer["parcel_id"],))
                     cursor.execute("SELECT u.id,c.id FROM users u LEFT JOIN wallets w ON w.user_id=u.id LEFT JOIN credentials c ON c.wallet_id=w.id AND c.status='ACTIVE' WHERE lower(coalesce(u.display_name,u.identity_reference))=lower(%s) LIMIT 1", (transfer["buyer"],))
                     buyer = cursor.fetchone()
