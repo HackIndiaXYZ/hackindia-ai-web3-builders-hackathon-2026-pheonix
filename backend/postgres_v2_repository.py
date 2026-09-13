@@ -125,7 +125,7 @@ class PostgresV2Repository:
                 transfers = [self._transfer(cursor, row[0]) for row in cursor.fetchall()]
         return [item for item in transfers if item and (statuses is None or item["status"] in statuses)]
 
-    def approve(self, transfer_id, actor, actor_role):
+    def approve(self, transfer_id, actor, actor_role, sell_token=None):
         with self._connect() as connection:
             with connection.transaction():
                 with connection.cursor() as cursor:
@@ -144,7 +144,17 @@ class PostgresV2Repository:
                             cursor.execute("UPDATE transfers SET status='REGISTRAR_REVIEW', version=version+1, updated_at=now() WHERE id=%s", (transfer_id,))
                     elif actor_role == "REGISTRAR":
                         if len(transfer["approvals"]) < transfer["required_approvals"]:
-                            raise ValueError("required owner approvals are incomplete")
+                            if sell_token and sell_token.startswith("SELL-TOKEN-"):
+                                import cache
+                                expected = cache.cached_get(f"sell_token:{transfer['parcel_id']}:{transfer['buyer']}")
+                                if not expected or sell_token != expected:
+                                    raise ValueError("invalid or expired sell token")
+                                # Mock validation: automatically fulfill all missing owner approvals
+                                for seller in transfer["sellers"]:
+                                    seller_id = self._user_id(cursor, seller)
+                                    cursor.execute("INSERT INTO transfer_approvals(transfer_id,user_id,approval_method,actor_role) VALUES (%s,%s,'SESSION','OWNER') ON CONFLICT DO NOTHING", (transfer_id, seller_id))
+                            else:
+                                raise ValueError("required owner approvals are incomplete")
                         cursor.execute("UPDATE transfers SET status='BUYER_ACCEPTANCE', registrar_user_id=%s, registrar_approved_at=now(), version=version+1, updated_at=now() WHERE id=%s", (actor_id, transfer_id))
                     elif actor_role == "BUYER":
                         if actor != transfer["buyer"] or not transfer["registrar_approval"]:

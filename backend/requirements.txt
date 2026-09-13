@@ -29,3 +29,5 @@ redis==5.2.1
 # Production WSGI server (used by the container image; `python app.py` still
 # runs the Flask development server for local work).
 gunicorn==23.0.0
+
+python-dotenv==1.1.1

@@ -4,17 +4,17 @@ import json
 import logging
 import os
 
-from .mst_client import MSTClient
+# Changed from mst_client to chain_client
+import chain_client
 
 log = logging.getLogger(__name__)
 
 
 class MSTIndexer:
-    def __init__(self, database_url=None, client=None, worker_id="mst-indexer"):
+    def __init__(self, database_url=None, worker_id="mst-indexer"):
         self.database_url = database_url or os.environ.get("DATABASE_URL")
         if not self.database_url:
             raise RuntimeError("DATABASE_URL is required for MST indexing")
-        self.client = client or MSTClient()
         self.worker_id = worker_id
 
     def _connect(self):
@@ -36,7 +36,9 @@ class MSTIndexer:
                 )
                 checkpoint = cur.fetchone()
                 start = from_block if from_block is not None else ((checkpoint[0] + 1) if checkpoint else 0)
-                events = self.client.get_events(from_block=start, to_block=to_block)
+                
+                # Use chain_client.get_all_activity
+                events = chain_client.get_all_activity(from_block=start, to_block=to_block)
                 highest = start - 1
                 for event in events:
                     highest = max(highest, int(event["block_number"]))
@@ -53,9 +55,9 @@ class MSTIndexer:
                             event["tx_hash"],
                             event["block_number"],
                             event["event_type"],
-                            event.get("parcel_id"),
-                            event.get("transfer_id"),
-                            event.get("transfer_timestamp"),
+                            event.get("ulpin"),
+                            event.get("v2_transfer_id"),
+                            event.get("timestamp"),
                             json.dumps(event, sort_keys=True),
                         ),
                     )

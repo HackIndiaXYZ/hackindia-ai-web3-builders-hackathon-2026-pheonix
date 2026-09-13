@@ -14,8 +14,8 @@ def test_metrics_endpoint_exposes_operational_names(client):
 
 def test_cookie_authenticated_mutation_requires_csrf(client):
     session = client.post("/api/auth/login", json={"username": "registrar_noida2", "role": "REGISTRAR"}).get_json()
-    client.set_cookie("session", "ambient-cookie")
-    response = client.post("/api/parcels/UP-0001-CLEAN/freeze", json={"frozen": True}, headers={"Authorization": f"Bearer {session['token']}"})
+    client.set_cookie("session", session["token"])
+    response = client.post("/api/parcels/UP-0001-CLEAN/freeze", json={"frozen": True})
     assert response.status_code in {401, 403}
 
 

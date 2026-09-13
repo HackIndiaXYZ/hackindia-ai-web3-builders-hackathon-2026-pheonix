@@ -15,7 +15,7 @@ export function AuditLog() {
       e.action?.toLowerCase().includes(query.toLowerCase()) ||
       e.ulpin?.toLowerCase().includes(query.toLowerCase()) ||
       e.actor_id?.toLowerCase().includes(query.toLowerCase()) ||
-      e.details?.toLowerCase().includes(query.toLowerCase())
+      (typeof e.details === "string" ? e.details : JSON.stringify(e.details || {})).toLowerCase().includes(query.toLowerCase())
   );
 
   return (
@@ -80,7 +80,7 @@ export function AuditLog() {
                     {e.actor_id}
                   </td>
                   <td className="py-3 px-4 text-[#475467] max-w-xs truncate">
-                    {e.details}
+                    {typeof e.details === "string" ? e.details : Object.keys(e.details || {}).length > 0 ? JSON.stringify(e.details) : "—"}
                   </td>
                   <td className="py-3 px-4 text-right font-mono text-[11px] text-[#667085]">
                     {formatDate(e.timestamp)}

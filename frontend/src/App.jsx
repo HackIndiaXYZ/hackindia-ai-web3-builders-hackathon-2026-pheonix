@@ -14,6 +14,7 @@ import { ExplorerPage } from "./pages/public/Explorer.jsx";
 import { HowItWorks } from "./pages/public/HowItWorks.jsx";
 import { NotFound } from "./pages/public/NotFound.jsx";
 import { AccessDenied } from "./pages/auth/AccessDenied.jsx";
+import { WorkflowPage } from "./pages/Workflow.jsx";
 
 // Auth Pages
 import { CitizenAuth } from "./pages/auth/CitizenAuth.jsx";
@@ -77,6 +78,7 @@ export default function App() {
         <Route path="/explore" element={<ExplorerPage />} />
         <Route path="/parcel/:ulpin" element={<ExplorerPage />} />
         <Route path="/how-it-works" element={<HowItWorks />} />
+        <Route path="/workflow" element={<WorkflowPage />} />
 
         {/* Auth Routes */}
         <Route path="/auth/citizen" element={<CitizenAuth />} />

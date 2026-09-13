@@ -49,11 +49,8 @@ export function RegistrarShell({ children }) {
   const navItems = [
     { to: "/registrar/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { to: "/registrar/transfers", label: "Transfer Petitions", icon: Inbox },
-    { to: "/registrar/parcels", label: "Cadastral Parcels", icon: Building2 },
     { to: "/registrar/succession", label: "Succession Desk", icon: FileCheck2 },
     { to: "/registrar/risk-review", label: "Risk Reviews", icon: AlertOctagon },
-    { to: "/registrar/overrides", label: "Overrides Ledger", icon: ShieldAlert },
-    { to: "/registrar/frozen-parcels", label: "Judicial Freezes", icon: Lock },
     { to: "/registrar/audit", label: "Immutable Audit Log", icon: History },
     { to: "/registrar/account", label: "Officer Credentials", icon: UserCheck },
   ];

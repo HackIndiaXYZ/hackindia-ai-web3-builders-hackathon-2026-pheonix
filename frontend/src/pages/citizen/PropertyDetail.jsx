@@ -398,13 +398,13 @@ export function PropertyDetail() {
                 Cryptographic Token (HMAC-SHA256)
               </span>
               <div className="p-3 bg-[#F8FAFC] rounded-lg border border-[#EAECF0] font-mono text-xs text-[#0B3A67] break-all select-all">
-                {activeTokenModal.token_string}
+                {activeTokenModal.token_string || activeTokenModal.key_id}
               </div>
             </div>
 
             <div className="flex items-center justify-between pt-2">
               <button
-                onClick={() => handleCopyToken(activeTokenModal.token_string)}
+                onClick={() => handleCopyToken(activeTokenModal.token_string || activeTokenModal.key_id)}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-[#D0D5DD] bg-white px-4 py-2 text-xs font-semibold text-[#344054]"
               >
                 {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}

@@ -74,7 +74,7 @@ export function Transfers() {
                 <span className="font-mono text-sm font-bold text-[#0B3A67]">
                   {tr.request_id}
                 </span>
-                <span className="font-mono text-xs text-[#475467]">({tr.ulpin})</span>
+                <span className="font-mono text-xs text-[#475467]">({tr.ulpin || tr.parcel_id})</span>
                 <span
                   className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
                     tr.status === "COMMITTED"

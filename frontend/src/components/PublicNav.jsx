@@ -279,34 +279,6 @@ export function PublicNav({
                       <div className="text-[10px] text-slate-400">Adjudication Desk</div>
                     </div>
                   </Link>
-
-                  <Link
-                    to="/auth/auditor"
-                    onClick={() => setPortalsOpen(false)}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-slate-200 hover:bg-white/10 hover:text-white transition-colors"
-                  >
-                    <div className="h-6 w-6 rounded bg-[#0E7090]/50 flex items-center justify-center text-sky-400">
-                      <FileSpreadsheet className="h-3.5 w-3.5" />
-                    </div>
-                    <div>
-                      <div className="font-semibold">State Auditor</div>
-                      <div className="text-[10px] text-slate-400">Ledger Directorate</div>
-                    </div>
-                  </Link>
-
-                  <Link
-                    to="/auth/bank"
-                    onClick={() => setPortalsOpen(false)}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-slate-200 hover:bg-white/10 hover:text-white transition-colors"
-                  >
-                    <div className="h-6 w-6 rounded bg-[#027A48]/50 flex items-center justify-center text-emerald-400">
-                      <Landmark className="h-3.5 w-3.5" />
-                    </div>
-                    <div>
-                      <div className="font-semibold">Bank Officer</div>
-                      <div className="text-[10px] text-slate-400">Mortgage & Lien Desk</div>
-                    </div>
-                  </Link>
                 </div>
               )}
             </div>
@@ -426,26 +398,6 @@ export function PublicNav({
                   <Shield className="h-3.5 w-3.5" />
                 </div>
                 <span>Sub-Registrar Adjudication Desk</span>
-              </Link>
-              <Link
-                to="/auth/auditor"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium text-slate-200 hover:bg-white/10"
-              >
-                <div className="h-6 w-6 rounded bg-[#0E7090]/50 flex items-center justify-center text-sky-400">
-                  <FileSpreadsheet className="h-3.5 w-3.5" />
-                </div>
-                <span>State Land Audit Directorate</span>
-              </Link>
-              <Link
-                to="/auth/bank"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium text-slate-200 hover:bg-white/10"
-              >
-                <div className="h-6 w-6 rounded bg-[#027A48]/50 flex items-center justify-center text-emerald-400">
-                  <Landmark className="h-3.5 w-3.5" />
-                </div>
-                <span>Financial Institution / Bank Desk</span>
               </Link>
             </div>
           </div>

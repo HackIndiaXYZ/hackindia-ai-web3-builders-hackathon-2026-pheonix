@@ -1,34 +1,29 @@
-"""Offline invariants for the MST title-record adapter."""
+import pytest
+from chain_client import DevelopmentSigner, ProductionSecureSigner, _doc_hash_bytes
+from eth_account import Account
 
-from blockchain.mst_client import MSTClient
+def test_development_signer():
+    acct = Account.create()
+    signer = DevelopmentSigner(acct.key.hex())
+    assert signer.get_address() == acct.address
 
+def test_development_signer_missing_key():
+    with pytest.raises(ValueError):
+        DevelopmentSigner("")
 
-def test_title_record_contains_hashes_only():
-    client = MSTClient.__new__(MSTClient)
-    record = client._record_payload({
-        "event_type": "OWNERSHIP_TRANSFERRED",
-        "transfer_id": "TR-TEST",
-        "parcel_id": "UP-TEST",
-        "previous_owner": "Previous Owner",
-        "new_owner": "New Owner",
-        "ownership_shares": [{"share_bps": 10000}],
-        "registrar_id": "registrar",
-        "approval_hash": "approval",
-        "document_hashes": ["document"],
-    })
+def test_production_signer_mock():
+    signer = ProductionSecureSigner("alias/test", "0x239823947A7eB3AF9D584b7556ACb7d996E2BCaF")
+    assert signer.get_address() == "0x239823947A7eB3AF9D584b7556ACb7d996E2BCaF"
+    with pytest.raises(NotImplementedError) as exc:
+        signer.sign_transaction({})
+    assert "mocked and not fully implemented" in str(exc.value)
 
-    serialized = str(record)
-    assert "Previous Owner" not in serialized
-    assert "New Owner" not in serialized
-    assert len(record["previous_owner_hash"]) == 64
-    assert len(record["new_owner_hash"]) == 64
-    assert len(record["record_hash"]) == 64
+def test_production_signer_missing_config():
+    with pytest.raises(ValueError):
+        ProductionSecureSigner("", "")
 
-
-def test_unknown_event_type_is_rejected():
-    client = MSTClient.__new__(MSTClient)
-    try:
-        client._record_payload({"event_type": "UNKNOWN", "parcel_id": "UP-TEST"})
-        assert False, "unknown event type should be rejected"
-    except ValueError as error:
-        assert "unsupported MST event type" in str(error)
+def test_doc_hash_bytes():
+    h = _doc_hash_bytes("test")
+    assert len(h) == 32
+    h2 = _doc_hash_bytes("0x" + "1" * 64)
+    assert h2 == bytes.fromhex("1" * 64)

@@ -35,6 +35,7 @@ export function TransferDesk() {
   const [overrideReason, setOverrideReason] = useState("");
   const [showOverrideInput, setShowOverrideInput] = useState(false);
   const [actionNotice, setActionNotice] = useState("");
+  const [sellToken, setSellToken] = useState("");
 
   const activeTransfer = useMemo(() => {
     return transfers.find((t) => t.request_id === selectedRequestId) || transfers[0];
@@ -73,7 +74,9 @@ export function TransferDesk() {
     }
 
     try {
-      await transferService.approve(activeTransfer.request_id, { override_reason: overrideReason.trim() || null }, token);
+      const approvePayload = { override_reason: overrideReason.trim() || null };
+      if (sellToken.trim()) approvePayload.sell_token = sellToken.trim();
+      await transferService.approve(activeTransfer.request_id, approvePayload, token);
       await transferService.submit(activeTransfer.request_id, token);
       setActionNotice("Conveyance petition submitted to the live registry outbox.");
     } catch (err) { setActionNotice(err.message || "The registry could not approve this petition."); }
@@ -351,6 +354,28 @@ export function TransferDesk() {
         <h2 className="text-xs font-bold uppercase tracking-wider text-[#667085] border-b border-[#EAECF0] pb-2">
           6. Official Adjudication Action Bar
         </h2>
+
+        {/* Sell Token Input */}
+        <div className="space-y-1.5">
+          <label className="block text-xs font-bold text-[#0B3A67]">
+            Owner Sell Token <span className="text-[#667085] font-normal">(required if owner has not approved yet)</span>
+          </label>
+          <div className="flex items-center gap-2">
+            <KeyRound className="h-4 w-4 text-[#0B3A67] shrink-0" />
+            <input
+              type="text"
+              value={sellToken}
+              onChange={(e) => setSellToken(e.target.value)}
+              placeholder="Paste SELL-TOKEN-XXXXXXXX from the land owner here…"
+              className="w-full rounded-lg border border-[#B9D5F4] bg-[#F0F7FF] px-3 py-2 font-mono text-xs text-[#0B3A67] placeholder:text-[#93C5FD] focus:outline-none focus:ring-1 focus:ring-[#0B3A67]"
+            />
+          </div>
+          {sellToken && (
+            <p className="text-[10px] text-[#027A48] font-semibold flex items-center gap-1">
+              <CheckCircle2 className="h-3 w-3" /> Sell token ready to submit
+            </p>
+          )}
+        </div>
 
         {/* Written override input for high-risk */}
         {isHighRisk && (

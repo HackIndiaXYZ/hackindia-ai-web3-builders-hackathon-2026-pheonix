@@ -6,7 +6,7 @@ import psycopg
 import json
 
 from app import config, v2, PROPERTIES
-from blockchain.mst_client import MSTClient
+import chain_client
 from blockchain.mst_indexer import MSTIndexer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -17,29 +17,27 @@ def run_worker():
         log.warning("DATABASE_URL is not set. Outbox worker requires PostgreSQL.")
         return
 
-    mst = None
-    if config.MST_RPC_URL and config.MST_WALLET_ADDRESS and config.MST_PRIVATE_KEY:
-        mst = MSTClient()
-        log.info("MST Client configured for outbox worker.")
+    if config.MST_RPC_URL and config.MST_WALLET_ADDRESS and (config.MST_PRIVATE_KEY or config.KMS_KEY_ID):
+        try:
+            chain_client._require_configured()
+            log.info("MST Client configured for outbox worker.")
+        except Exception as e:
+            log.error(f"Live MST configuration error: {e}")
+            return
     else:
         log.error("Live MST configuration missing. Production requires live MST.")
         return
 
     log.info("Starting durable outbox worker...")
     
-    # We will poll for outbox items that are SUBMITTED or MST_FAILED (for retry)
-    # Actually, next_outbox_item claims SUBMITTED or stalled PROCESSING.
-    # We need to make sure we also pick up MST_PENDING_CONFIRMATION if stalled?
-    
     while True:
         try:
-            process_outbox_item(mst)
+            process_outbox_item()
         except Exception as e:
             log.exception("Unexpected error in worker loop.")
         time.sleep(5)
 
-def process_outbox_item(mst):
-    # Claim the next available item. It claims SUBMITTED or stalled PROCESSING.
+def process_outbox_item():
     item = v2.next_outbox_item(status="SUBMITTED", worker_id="outbox-worker")
     if not item:
         return
@@ -54,9 +52,6 @@ def process_outbox_item(mst):
         log.error(f"Transfer {transfer_id} not found.")
         return
 
-    # Check if this item already has a tx_hash (i.e. crash after submission)
-    # We need to look up the tx_hash from the outbox item in the DB.
-    # v2.list_outbox() can give us the details.
     outbox_details = next((x for x in v2.list_outbox() if x["outbox_id"] == outbox_id), None)
     if not outbox_details:
         return
@@ -64,26 +59,26 @@ def process_outbox_item(mst):
     tx_hash = outbox_details.get("tx_hash")
     
     try:
-        if not tx_hash:
-            # We need to submit to MST
-            prop = PROPERTIES.get(transfer["parcel_id"])
-            if not prop or prop.get("frozen"):
-                raise ValueError("Parcel unavailable or frozen")
+        prop = PROPERTIES.get(transfer["parcel_id"])
+        if not prop or prop.get("frozen"):
+            raise ValueError("Parcel unavailable or frozen")
             
-            payload = {
-                "event_type": "OWNERSHIP_TRANSFERRED",
-                "transfer_id": transfer["transfer_id"],
-                "parcel_id": transfer["parcel_id"],
-                "previous_owner": prop["current_owner"],
-                "new_owner": transfer["buyer"],
-                "ownership_shares": [{"share_bps": 10000}],
-                "registrar_id": (transfer.get("registrar_approval") or {}).get("actor", "outbox-worker"),
-                "approval_hash": transfer["assessment_hash"],
-                "document_hashes": [transfer["document_hash"]],
-            }
+        if not tx_hash:
             log.info(f"Submitting MST transaction for transfer {transfer_id}...")
-            submitted = mst.submit_event(payload)
-            tx_hash = submitted["tx_hash"]
+            # For the demo, the backend initiates the transfer. 
+            # In a real environment, the owner and buyer would have to approve.
+            # To simulate completion without them for the hackathon outbox, 
+            # we just call register_transfer which initiates it.
+            
+            # Here we can use the chain_client to initiate it. 
+            entry = chain_client.register_transfer(
+                transfer["parcel_id"], 
+                prop["current_owner"], 
+                transfer["buyer"], 
+                transfer["document_hash"], 
+                ai_verified=False
+            )
+            tx_hash = entry["tx_hash"]
             
             # Record tx_hash in database immediately (MST_SUBMITTED)
             v2.confirm_commit(transfer_id, tx_hash, "outbox-worker")
@@ -91,16 +86,17 @@ def process_outbox_item(mst):
 
         # Reconcile / wait for confirmation
         log.info(f"Waiting for confirmation of tx {tx_hash}...")
-        confirmation = mst.verify_confirmation(tx_hash, confirmations=1)
+        w3, _, _ = chain_client._client()
+        receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
         
-        if not confirmation["confirmed"]:
+        if receipt.status != 1:
             raise RuntimeError(f"MST transaction {tx_hash} failed confirmation.")
             
-        # Instead of just completing, run indexer to ensure event is in postgres
-        indexer = MSTIndexer(client=mst, worker_id="outbox-indexer-sync")
-        indexer.replay(from_block=confirmation["block_number"], to_block=confirmation["block_number"])
+        # Run indexer to ensure event is in postgres
+        indexer = MSTIndexer(worker_id="outbox-indexer-sync")
+        indexer.replay(from_block=receipt.blockNumber, to_block=receipt.blockNumber)
         
-        # Now verify that the event actually made it to blockchain_events
+        # Verify that the event actually made it to blockchain_events
         with psycopg.connect(config.DATABASE_URL) as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT event_id FROM blockchain_events WHERE tx_hash=%s", (tx_hash,))

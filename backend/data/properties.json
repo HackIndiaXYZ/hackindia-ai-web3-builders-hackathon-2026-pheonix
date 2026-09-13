@@ -113,5 +113,28 @@
       {"from": "Ramesh Verma", "to": "Suman Verma", "date": "2026-08-05", "doc_hash": "0xfff2"},
       {"from": "Suman Verma", "to": "Deepak Verma", "date": "2026-08-20", "doc_hash": "0xfff3"}
     ]
+  },
+  {
+    "ulpin": "UP-0008-SINGLE-OWNER",
+    "survey_number": "SN-800-A",
+    "current_owner": "Rajesh Kumar",
+    "ownership_type": "SOLE",
+    "owners": [
+      {"name": "Rajesh Kumar", "share_percent": 100, "wallet_address": "demo:rajesh", "credential_status": "ACTIVE"}
+    ],
+    "ownership_policy": {"required_approvals": 1, "total_owners": 1},
+    "nominees": [],
+    "encumbrances": [],
+    "disputes": [],
+    "frozen": false,
+    "area_sqm": 1500,
+    "registration_office": "Sub-Registrar Noida-I",
+    "last_registered_date": "2024-01-01",
+    "title_status": "VERIFIED",
+    "risk_status": "LOW_RISK",
+    "boundary": [[77.51000, 28.47500], [77.51100, 28.47500], [77.51100, 28.47600], [77.51000, 28.47600]],
+    "transfer_history": [
+      {"from": "Government Grant", "to": "Rajesh Kumar", "date": "2024-01-01", "doc_hash": "0xabc1"}
+    ]
   }
 ]

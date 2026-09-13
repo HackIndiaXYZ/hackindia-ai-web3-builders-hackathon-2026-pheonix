@@ -128,7 +128,7 @@ def basic_security_controls():
 def refresh_postgres_projection():
     """Refresh the read projection so PostgreSQL, not process memory, wins."""
     global PROPERTIES
-    if config.DATABASE_URL:
+    if hasattr(v2, "load_properties"):
         PROPERTIES = v2.load_properties()
 
 
@@ -636,8 +636,9 @@ def get_v2_transfer(transfer_id):
 def approve_v2_transfer(transfer_id):
     if request.session["role"] == "OWNER":
         return jsonify({"error": "owner approval requires an EIP-712 transfer signature"}), 409
+    body = request.get_json(force=True, silent=True) or {}
     try:
-        transfer = v2.approve(transfer_id, request.session["username"], request.session["role"])
+        transfer = v2.approve(transfer_id, request.session["username"], request.session["role"], sell_token=body.get("sell_token"))
     except KeyError as e:
         return jsonify({"error": str(e)}), 404
     except PermissionError as e:
@@ -765,6 +766,37 @@ def audit_search():
         rows = [",".join('"' + str(event.get(column, "")).replace('"', '""') + '"' for column in columns) for event in events]
         return Response(",".join(columns) + "\n" + "\n".join(rows), mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=audit-events.csv"})
     return jsonify({"events": events, "count": len(events)})
+
+
+@app.route("/api/v2/tokens/sell/generate", methods=["POST"])
+@require_role("OWNER")
+def generate_sell_token():
+    body = validation.require_body(request.get_json(force=True, silent=True))
+    ulpin = validation.require_str(body, "ulpin", max_length=64)
+    buyer_user_id = validation.require_str(body, "buyer_user_id", max_length=64)
+    
+    prop = PROPERTIES.get(ulpin)
+    if not prop:
+        return jsonify({"error": "not found"}), 404
+        
+    parcel = v2.enrich_parcel(prop)
+    if request.session["username"] not in [o["name"] for o in parcel["owners"]]:
+        return jsonify({"error": "only an active owner can generate a sell token for this parcel"}), 403
+        
+    token = "SELL-TOKEN-" + str(uuid.uuid4())[:8].upper()
+    import cache
+    cache.cached_set(f"sell_token:{ulpin}:{buyer_user_id}", token, 86400)
+        
+    return jsonify({
+        "key_id": token,
+        "token_string": token,
+        "ulpin": ulpin,
+        "buyer_user_id": buyer_user_id,
+        "scope": body.get("scope", "FULL_CONVEYANCE"),
+        "transfer_request_id": body.get("transfer_request_id"),
+        "created_at": datetime.utcnow().isoformat() + "Z",
+        "expires_at": (datetime.utcnow() + __import__("datetime").timedelta(hours=24)).isoformat() + "Z"
+    }), 201
 
 
 @app.route("/api/wallets/challenge", methods=["POST"])

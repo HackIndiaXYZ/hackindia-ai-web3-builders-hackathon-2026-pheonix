@@ -35,9 +35,14 @@ export function Queue() {
           <h1 className="text-2xl font-bold text-[#101828]">
             Sub-Registrar Transfer Petitions Queue
           </h1>
-          <p className="mt-1 text-xs text-[#475467]">
-            Statutory conveyance petitions awaiting registrar review, risk adjudication, and cryptographic seal.
-          </p>
+          <div className="flex items-center gap-4 mt-1">
+            <p className="text-xs text-[#475467]">
+              Statutory conveyance petitions awaiting registrar review, risk adjudication, and cryptographic seal.
+            </p>
+            <Link to="/workflow" className="rounded-md bg-[#0B3A67] px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#1769AA] transition-colors">
+              + Start Petition
+            </Link>
+          </div>
         </div>
 
         {/* Filter Pills */}

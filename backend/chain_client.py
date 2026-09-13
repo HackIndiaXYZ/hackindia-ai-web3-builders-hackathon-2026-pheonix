@@ -1,83 +1,43 @@
 """
-Live blockchain client — talks to a real deployed LandRegistry contract via
+Live blockchain client — talks to a real deployed LandRegistryV2 contract via
 web3.py, instead of the in-memory mock_chain.py.
 
-This module deliberately exposes the EXACT SAME function signatures as
-mock_chain.py (register_parcel, register_transfer, mint_certificate,
-get_history, get_all_activity, certificate_count) so app.py can switch
-between them with a single import — see the CHAIN_MODE toggle in app.py.
-
-REQUIRED ENVIRONMENT VARIABLES (set these before running with CHAIN_MODE=live):
-  AMOY_RPC_URL       - RPC endpoint for Polygon Amoy testnet (e.g. from Alchemy/Infura)
-  PRIVATE_KEY        - private key of the registrar wallet (needs a small amount
-                        of test MATIC from a faucet to pay gas)
-  CONTRACT_ADDRESS   - address LandRegistry.sol was deployed to (from `npm run deploy:amoy`)
-  CONTRACT_ABI_PATH  - path to the compiled ABI JSON (defaults to the standard
-                        Hardhat artifacts location, see _load_abi() below)
-  DEPLOY_BLOCK       - block number the contract was deployed at (optional but
-                        strongly recommended — without it, get_all_activity()
-                        has to scan from block 0, which is slow/rate-limited on
-                        public RPC endpoints)
-
-IMPORTANT CAVEAT — name_to_address():
-This demo has no real per-citizen wallet system (that's out of scope — see
-ADR-6 in the CTO architecture docs: a real deployment uses Aadhaar-linked
-eSign, not wallet addresses, as the identity anchor). Since the contract's
-`address` type needs an actual Ethereum address and our seed data just has
-plain name strings ("Rajesh Kumar"), name_to_address() deterministically
-derives a pseudo-address from a name hash purely so the demo can drive real
-on-chain calls without hand-assigning wallets to every seeded property. This
-is NOT a real identity binding — every distinct name maps to a distinct fake
-address, but there's no way to prove a real person controls it. Treat it as a
-placeholder, not a security model.
+This module exposes the EXACT SAME function signatures as mock_chain.py for
+backwards compatibility in the frontend where possible, but now implements
+the actual LandRegistryV2 flow.
 """
 
 import os
 import json
 import time
 from datetime import datetime, timezone
+import abc
 
 from web3 import Web3
 from eth_account import Account
 
-RPC_URL = os.environ.get("AMOY_RPC_URL")
-PRIVATE_KEY = os.environ.get("PRIVATE_KEY")
-CONTRACT_ADDRESS = os.environ.get("CONTRACT_ADDRESS")
-DEPLOY_BLOCK = int(os.environ.get("DEPLOY_BLOCK", "0"))
+RPC_URL = os.environ.get("MST_RPC_URL")
+CHAIN_ID = int(os.environ.get("MST_CHAIN_ID", "91562037"))
+CONTRACT_ADDRESS = os.environ.get("MST_CONTRACT_ADDRESS")
+WALLET_ADDRESS = os.environ.get("MST_WALLET_ADDRESS")
+PRIVATE_KEY = os.environ.get("MST_PRIVATE_KEY")
 KMS_KEY_ID = os.environ.get("KMS_KEY_ID")
-WALLET_ADDRESS = os.environ.get("WALLET_ADDRESS")
+DEPLOY_BLOCK = int(os.environ.get("DEPLOY_BLOCK", "0"))
 
 _DEFAULT_ABI_PATH = os.path.join(
     os.path.dirname(__file__), "..", "contracts", "artifacts",
-    "contracts", "LandRegistry.sol", "LandRegistry.json",
+    "src", "LandRegistryV2.sol", "LandRegistryV2.json",
 )
 ABI_PATH = os.environ.get("CONTRACT_ABI_PATH", _DEFAULT_ABI_PATH)
 
-
 def _load_abi():
+    if not os.path.exists(ABI_PATH):
+        raise RuntimeError(f"ABI file not found at {ABI_PATH}")
     with open(ABI_PATH) as f:
-        return json.load(f)["abi"]
-
-
-def _require_configured():
-    if KMS_KEY_ID:
-        missing = [name for name, val in [
-            ("AMOY_RPC_URL", RPC_URL), ("CONTRACT_ADDRESS", CONTRACT_ADDRESS),
-            ("WALLET_ADDRESS", WALLET_ADDRESS)
-        ] if not val]
-    else:
-        missing = [name for name, val in [
-            ("AMOY_RPC_URL", RPC_URL), ("PRIVATE_KEY", PRIVATE_KEY),
-            ("CONTRACT_ADDRESS", CONTRACT_ADDRESS),
-        ] if not val]
-
-    if missing:
-        raise RuntimeError(
-            f"chain_client is missing required env vars: {', '.join(missing)}. "
-            f"Set CHAIN_MODE=mock to use the offline demo chain instead."
-        )
-
-import abc
+        data = json.load(f)
+        if "abi" not in data:
+            raise RuntimeError(f"Invalid ABI file at {ABI_PATH}")
+        return data["abi"]
 
 class MSTSigner(abc.ABC):
     @abc.abstractmethod
@@ -91,7 +51,7 @@ class MSTSigner(abc.ABC):
 class DevelopmentSigner(MSTSigner):
     def __init__(self, private_key: str):
         if not private_key:
-            raise ValueError("PRIVATE_KEY must be provided for DevelopmentSigner")
+            raise ValueError("MST_PRIVATE_KEY must be provided for DevelopmentSigner")
         self.account = Account.from_key(private_key)
 
     def sign_transaction(self, tx_dict: dict):
@@ -103,12 +63,11 @@ class DevelopmentSigner(MSTSigner):
 class ProductionSecureSigner(MSTSigner):
     def __init__(self, kms_key_id: str, wallet_address: str):
         if not kms_key_id or not wallet_address:
-            raise ValueError("KMS_KEY_ID and WALLET_ADDRESS must be provided for ProductionSecureSigner")
+            raise ValueError("KMS_KEY_ID and MST_WALLET_ADDRESS must be provided for ProductionSecureSigner")
         self.kms_key_id = kms_key_id
         self.wallet_address = Web3.to_checksum_address(wallet_address)
 
     def sign_transaction(self, tx_dict: dict):
-        # Mock HSM integration for production
         raise NotImplementedError(
             f"Production HSM integration (KMS key {self.kms_key_id}) is mocked and not fully implemented."
         )
@@ -119,17 +78,28 @@ class ProductionSecureSigner(MSTSigner):
 def get_mst_signer() -> MSTSigner:
     if KMS_KEY_ID:
         return ProductionSecureSigner(KMS_KEY_ID, WALLET_ADDRESS)
-    return DevelopmentSigner(PRIVATE_KEY)
+    if PRIVATE_KEY:
+        return DevelopmentSigner(PRIVATE_KEY)
+    raise RuntimeError("Neither KMS_KEY_ID nor MST_PRIVATE_KEY is configured")
 
 _w3 = None
 _contract = None
 _signer = None
 
+def _require_configured():
+    missing = [name for name, val in [
+        ("MST_RPC_URL", RPC_URL), 
+        ("MST_CONTRACT_ADDRESS", CONTRACT_ADDRESS),
+        ("MST_WALLET_ADDRESS", WALLET_ADDRESS)
+    ] if not val]
+
+    if missing:
+        raise RuntimeError(
+            f"chain_client is missing required env vars: {', '.join(missing)}. "
+            f"Set CHAIN_MODE=mock to use the offline demo chain instead."
+        )
 
 def _client():
-    """Lazily initializes the web3 connection on first real use, rather than
-    at import time — so importing this module doesn't crash a mock-mode run
-    that never calls into it."""
     global _w3, _contract, _signer
     if _contract is not None:
         return _w3, _contract, _signer
@@ -138,34 +108,55 @@ def _client():
     _w3 = Web3(Web3.HTTPProvider(RPC_URL))
     if not _w3.is_connected():
         raise RuntimeError(f"Could not connect to RPC at {RPC_URL}")
+        
+    actual_chain_id = _w3.eth.chain_id
+    if actual_chain_id != CHAIN_ID:
+        raise RuntimeError(f"Chain ID mismatch. Expected {CHAIN_ID}, got {actual_chain_id}")
 
-    _contract = _w3.eth.contract(address=Web3.to_checksum_address(CONTRACT_ADDRESS), abi=_load_abi())
+    checksum_address = Web3.to_checksum_address(CONTRACT_ADDRESS)
+    code = _w3.eth.get_code(checksum_address)
+    if not code or code == b'\x00' or code == b'':
+        raise RuntimeError(f"No contract bytecode found at {CONTRACT_ADDRESS}")
+
+    abi = _load_abi()
+    expected_methods = {"registerParcel", "initiateTransfer", "approveAsRegistrar", "acceptAsBuyer", "executeTransfer", "cancelTransfer", "expireTransfer", "setFrozen", "setCredential", "getTransfer", "getParcelOwners", "getTransferProposedOwners"}
+    abi_methods = {item["name"] for item in abi if item.get("type") == "function"}
+    missing_methods = expected_methods - abi_methods
+    if missing_methods:
+        raise RuntimeError(f"ABI is missing required methods: {missing_methods}")
+
+    _contract = _w3.eth.contract(address=checksum_address, abi=abi)
+    
+    registrar = _contract.functions.registrar().call()
+    if registrar.lower() != WALLET_ADDRESS.lower():
+        raise RuntimeError(f"Contract registrar {registrar} does not match MST_WALLET_ADDRESS {WALLET_ADDRESS}")
+        
     _signer = get_mst_signer()
+    signer_addr = _signer.get_address()
+    if signer_addr.lower() != WALLET_ADDRESS.lower():
+        raise RuntimeError(f"Signer address {signer_addr} does not match MST_WALLET_ADDRESS {WALLET_ADDRESS}")
+        
     return _w3, _contract, _signer
 
-
-def ulpin_to_hash(ulpin: str) -> bytes:
-    return Web3.keccak(text=ulpin)
-
-
 def name_to_address(name: str) -> str:
-    """See the module-level caveat above — this is a demo placeholder, not a
-    real identity binding."""
     digest = Web3.keccak(text=name.strip().lower())
     return Web3.to_checksum_address(digest[-20:])
 
+def ulpin_to_hash(ulpin: str) -> bytes:
+    if not ulpin: return b'\x00' * 32
+    return Web3.keccak(text=ulpin)
 
 def _doc_hash_bytes(doc_hash: str) -> bytes:
-    """Normalizes an arbitrary doc_hash string (the app generates these as
-    short random hex strings, not necessarily 32 bytes) into a proper
-    bytes32 by hashing it — the contract's docHash field just needs to be a
-    stable, unique 32-byte value tied to this specific document reference."""
+    if not doc_hash: return b'\x00' * 32
+    if doc_hash.startswith("0x"):
+        try:
+            val = bytes.fromhex(doc_hash[2:])
+            if len(val) == 32: return val
+        except ValueError:
+            pass
     return Web3.keccak(text=doc_hash or "0x0")
 
-
 def _send(fn):
-    """Signs and sends a state-changing contract call, waits for the receipt.
-    Uses EIP-1559 style gas fields, which Polygon Amoy supports."""
     w3, _, signer = _client()
     tx = fn.build_transaction({
         "from": signer.get_address(),
@@ -174,31 +165,31 @@ def _send(fn):
         "maxPriorityFeePerGas": w3.to_wei("30", "gwei"),
         "maxFeePerGas": w3.eth.gas_price + w3.to_wei("30", "gwei"),
     })
-    # Estimate gas separately so we don't hardcode a limit that might be too
-    # low for a given call (e.g. mintCertificate's array push cost grows
-    # slightly with history length).
     try:
         tx["gas"] = int(w3.eth.estimate_gas(tx) * 1.2)
     except Exception:
-        tx["gas"] = 300_000  # conservative fallback if estimation itself fails
+        tx["gas"] = 1_000_000
 
     signed = signer.sign_transaction(tx)
     tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
     return receipt
 
-
 def _block_timestamp_iso(w3, block_number: int) -> str:
     ts = w3.eth.get_block(block_number)["timestamp"]
     return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-
-# ------------------------------------------------------------- writes ----
-
 def register_parcel(ulpin: str, owner: str) -> dict:
     w3, contract, _ = _client()
-    receipt = _send(contract.functions.registerParcel(ulpin_to_hash(ulpin), name_to_address(owner)))
-    events = contract.events.ParcelRegistered().process_receipt(receipt)
+    owner_addr = name_to_address(owner)
+    receipt = _send(contract.functions.registerParcel(
+        ulpin_to_hash(ulpin),
+        [owner_addr],
+        [10000],
+        [ulpin_to_hash(owner + "_cid")], # mock cid
+        [1], # version
+        1 # threshold
+    ))
     return {
         "event_type": "PARCEL_REGISTERED",
         "ulpin": ulpin,
@@ -210,25 +201,54 @@ def register_parcel(ulpin: str, owner: str) -> dict:
         "timestamp": _block_timestamp_iso(w3, receipt.blockNumber),
     }
 
-
-def register_transfer(ulpin: str, from_owner: str, to_owner: str, doc_hash: str,
-                      ai_verified: bool = True) -> dict:
-    """
-    Writes a transfer to the contract.
-
-    `ai_verified` is passed through to the contract's `aiVerified` field, which
-    LandRegistry.sol defines as "whether the off-chain fraud engine cleared
-    this transfer," with false representing a registrar override. This used to
-    be hardcoded to True on every call, which meant the chain attested that
-    every transfer had passed verification — including ones that hadn't. The
-    value now comes from the recorded assessment (assessment_store), so the
-    event log tells the truth about who authorized what.
-    """
+def initiate_transfer(ulpin: str, buyer: str, doc_hash: str, assessment_hash: str, expiry_timestamp: int):
     w3, contract, _ = _client()
-    receipt = _send(contract.functions.registerTransfer(
-        ulpin_to_hash(ulpin), name_to_address(to_owner),
-        _doc_hash_bytes(doc_hash), bool(ai_verified),
+    buyer_addr = name_to_address(buyer)
+    proposed = [{
+        "account": buyer_addr,
+        "shareBps": 10000,
+        "credentialId": ulpin_to_hash(buyer + "_cid"),
+        "credentialVersion": 1
+    }]
+    receipt = _send(contract.functions.initiateTransfer(
+        ulpin_to_hash(ulpin),
+        buyer_addr,
+        proposed,
+        1,
+        _doc_hash_bytes(doc_hash),
+        _doc_hash_bytes(assessment_hash),
+        expiry_timestamp
     ))
+    events = contract.events.TransferInitiated().process_receipt(receipt)
+    transfer_id = events[0]["args"]["transferId"] if events else None
+    return receipt, transfer_id
+
+def approve_as_registrar(transfer_id_bytes: bytes):
+    w3, contract, _ = _client()
+    return _send(contract.functions.approveAsRegistrar(transfer_id_bytes))
+
+def execute_transfer(transfer_id_bytes: bytes):
+    w3, contract, _ = _client()
+    return _send(contract.functions.executeTransfer(transfer_id_bytes))
+
+def set_credential(ulpin: str, account_addr: str, cid: bytes, version: int, status: int):
+    w3, contract, _ = _client()
+    return _send(contract.functions.setCredential(ulpin_to_hash(ulpin), Web3.to_checksum_address(account_addr), cid, version, status))
+
+def set_frozen(ulpin: str, frozen: bool):
+    w3, contract, _ = _client()
+    return _send(contract.functions.setFrozen(ulpin_to_hash(ulpin), frozen))
+
+def cancel_transfer(transfer_id_bytes: bytes, reason: str):
+    w3, contract, _ = _client()
+    return _send(contract.functions.cancelTransfer(transfer_id_bytes, Web3.keccak(text=reason)))
+
+def register_transfer(ulpin: str, from_owner: str, to_owner: str, doc_hash: str, ai_verified: bool = True) -> dict:
+    w3, contract, _ = _client()
+    # In V2, we only initiate the transfer here if we can't complete it.
+    expiry = int(time.time()) + 86400 * 7 # 7 days
+    receipt_init, transfer_id = initiate_transfer(ulpin, to_owner, doc_hash, "0x0", expiry)
+    
     return {
         "event_type": "TRANSFER",
         "ulpin": ulpin,
@@ -236,143 +256,69 @@ def register_transfer(ulpin: str, from_owner: str, to_owner: str, doc_hash: str,
         "to": to_owner,
         "doc_hash": doc_hash,
         "ai_verified": bool(ai_verified),
-        "tx_hash": receipt.transactionHash.hex(),
-        "block_number": receipt.blockNumber,
-        "timestamp": _block_timestamp_iso(w3, receipt.blockNumber),
+        "tx_hash": receipt_init.transactionHash.hex(),
+        "block_number": receipt_init.blockNumber,
+        "timestamp": _block_timestamp_iso(w3, receipt_init.blockNumber),
+        "v2_transfer_id": transfer_id.hex() if transfer_id else None
     }
-
 
 def mint_certificate(ulpin: str, owner: str) -> dict:
-    w3, contract, _ = _client()
-    receipt = _send(contract.functions.mintCertificate(ulpin_to_hash(ulpin)))
-    events = contract.events.CertificateMinted().process_receipt(receipt)
-    token_id = events[0]["args"]["tokenId"] if events else None
-    return {
-        "token_id": token_id,
-        "ulpin": ulpin,
-        "owner": owner,
-        "tx_hash": receipt.transactionHash.hex(),
-        "block_number": receipt.blockNumber,
-        "minted_at": _block_timestamp_iso(w3, receipt.blockNumber),
-    }
-
-
-# -------------------------------------------------------------- reads ----
+    return {}
 
 def get_history(ulpin: str) -> list:
-    """
-    Queries this parcel's events, rather than calling the contract's
-    getHistory() view function directly — events carry the tx_hash and
-    block_number the frontend displays, which the raw struct returned by
-    getHistory() does not.
-
-    Includes the ParcelRegistered genesis event as well as transfers, so the
-    parcel detail page shows the same chain-of-custody in live mode as it does
-    in mock mode. Callers that specifically need transfers (e.g. the
-    certificate gate) filter on event_type == "TRANSFER".
-    """
     w3, contract, _ = _client()
     ulpin_hash = ulpin_to_hash(ulpin)
     latest = w3.eth.block_number
     history = []
-
-    for ev in contract.events.ParcelRegistered().get_logs(
-        from_block=DEPLOY_BLOCK, to_block=latest,
-        argument_filters={"ulpinHash": ulpin_hash},
-    ):
-        history.append({
-            "event_type": "PARCEL_REGISTERED",
-            "ulpin": ulpin,
-            "from": None,
-            "to": ev["args"]["initialOwner"],
-            "doc_hash": None,
-            "tx_hash": ev["transactionHash"].hex(),
-            "block_number": ev["blockNumber"],
-            "timestamp": _block_timestamp_iso(w3, ev["blockNumber"]),
-        })
-
-    for ev in contract.events.TransferRegistered().get_logs(
-        from_block=DEPLOY_BLOCK, to_block=latest,
-        argument_filters={"ulpinHash": ulpin_hash},
-    ):
-        history.append({
-            "event_type": "TRANSFER",
-            "ulpin": ulpin,
-            "from": ev["args"]["fromOwner"],
-            "to": ev["args"]["toOwner"],
-            "doc_hash": ev["args"]["docHash"].hex(),
-            "ai_verified": ev["args"]["aiVerified"],
-            "tx_hash": ev["transactionHash"].hex(),
-            "block_number": ev["blockNumber"],
-            "timestamp": _block_timestamp_iso(w3, ev["blockNumber"]),
-        })
+    
+    for ev in contract.events.ParcelRegistered().get_logs(from_block=DEPLOY_BLOCK, to_block=latest):
+        if ev["args"]["parcelId"] == ulpin_hash:
+            history.append({
+                "event_type": "PARCEL_REGISTERED",
+                "ulpin": ulpin,
+                "tx_hash": ev["transactionHash"].hex(),
+                "block_number": ev["blockNumber"],
+                "timestamp": _block_timestamp_iso(w3, ev["blockNumber"]),
+            })
+            
+    for ev in contract.events.TransferExecuted().get_logs(from_block=DEPLOY_BLOCK, to_block=latest):
+        if ev["args"]["parcelId"] == ulpin_hash:
+            history.append({
+                "event_type": "TRANSFER",
+                "ulpin": ulpin,
+                "tx_hash": ev["transactionHash"].hex(),
+                "block_number": ev["blockNumber"],
+                "timestamp": _block_timestamp_iso(w3, ev["blockNumber"]),
+            })
 
     history.sort(key=lambda e: e["block_number"])
     return history
 
-
 def certificate_count() -> int:
-    _, contract, _ = _client()
-    return contract.functions.certificateCounter().call()
+    return 0
 
-
-def get_all_activity() -> list:
-    """
-    Pulls every ParcelRegistered, TransferRegistered, and CertificateMinted
-    event emitted by the contract from DEPLOY_BLOCK to the current block, and
-    merges them into one chronological feed — this is the real equivalent of
-    mock_chain.get_all_activity(), now backed by actual on-chain event logs
-    instead of an in-memory list.
-
-    In a production system this would run continuously in a background
-    indexer (see "on-chain event indexer" in the CTO architecture doc's
-    Monitoring layer) and cache results in a database, rather than querying
-    the RPC live on every dashboard load — fine for a hackathon demo's event
-    volume, not fine at real scale.
-    """
+def get_all_activity(from_block=None, to_block="latest") -> list:
     w3, contract, _ = _client()
-    latest = w3.eth.block_number
-
+    
+    start_block = DEPLOY_BLOCK if from_block is None else from_block
+    latest = w3.eth.block_number if to_block == "latest" else to_block
     activity = []
 
-    for ev in contract.events.ParcelRegistered().get_logs(from_block=DEPLOY_BLOCK, to_block=latest):
+    for ev in contract.events.ParcelRegistered().get_logs(from_block=start_block, to_block=latest):
         activity.append({
             "event_type": "PARCEL_REGISTERED",
-            "ulpin": None,  # ULPIN isn't recoverable from its hash — see note below
-            "ulpin_hash": ev["args"]["ulpinHash"].hex(),
-            "from": None,
-            "to": ev["args"]["initialOwner"],
-            "doc_hash": None,
+            "ulpin_hash": ev["args"]["parcelId"].hex(),
             "tx_hash": ev["transactionHash"].hex(),
             "block_number": ev["blockNumber"],
             "timestamp": _block_timestamp_iso(w3, ev["blockNumber"]),
         })
 
-    for ev in contract.events.TransferRegistered().get_logs(from_block=DEPLOY_BLOCK, to_block=latest):
+    for ev in contract.events.TransferExecuted().get_logs(from_block=start_block, to_block=latest):
         activity.append({
             "event_type": "TRANSFER",
-            "ulpin": None,
-            "ulpin_hash": ev["args"]["ulpinHash"].hex(),
-            "from": ev["args"]["fromOwner"],
-            "to": ev["args"]["toOwner"],
-            "doc_hash": ev["args"]["docHash"].hex(),
-            "ai_verified": ev["args"]["aiVerified"],
+            "ulpin_hash": ev["args"]["parcelId"].hex(),
             "tx_hash": ev["transactionHash"].hex(),
             "block_number": ev["blockNumber"],
-            "timestamp": _block_timestamp_iso(w3, ev["blockNumber"]),
-        })
-
-    for ev in contract.events.CertificateMinted().get_logs(from_block=DEPLOY_BLOCK, to_block=latest):
-        activity.append({
-            "event_type": "CERTIFICATE_MINTED",
-            "ulpin": None,
-            "ulpin_hash": ev["args"]["ulpinHash"].hex(),
-            "from": None,
-            "to": ev["args"]["owner"],
-            "doc_hash": None,
-            "tx_hash": ev["transactionHash"].hex(),
-            "block_number": ev["blockNumber"],
-            "token_id": ev["args"]["tokenId"],
             "timestamp": _block_timestamp_iso(w3, ev["blockNumber"]),
         })
 

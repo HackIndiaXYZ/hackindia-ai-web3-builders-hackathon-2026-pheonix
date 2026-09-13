@@ -186,7 +186,7 @@ export function SellKeys() {
                     Serialized Token String
                   </span>
                   <button
-                    onClick={() => handleCopy(selectedToken.token_string)}
+                    onClick={() => handleCopy(selectedToken.token_string || selectedToken.key_id)}
                     className="text-xs text-[#0B3A67] hover:underline flex items-center gap-1"
                   >
                     {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
@@ -194,7 +194,7 @@ export function SellKeys() {
                   </button>
                 </div>
                 <div className="p-3 bg-[#F8FAFC] rounded-lg border border-[#EAECF0] font-mono text-xs text-[#0B3A67] break-all select-all">
-                  {selectedToken.token_string}
+                  {selectedToken.token_string || selectedToken.key_id}
                 </div>
               </div>
 

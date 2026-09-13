@@ -24,6 +24,8 @@ def csrf_valid(request, session):
     # Bearer authentication is not sent automatically by browsers and is not
     # vulnerable to ambient-cookie CSRF. Cookie-authenticated requests must
     # provide the double-submit header.
+    if request.headers.get("Authorization", "").startswith("Bearer "):
+        return True
     if not request.cookies:
         return True
     supplied = request.headers.get("X-CSRF-Token", "")
