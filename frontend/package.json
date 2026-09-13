@@ -6,7 +6,7 @@
     "dev": "vite --host 127.0.0.1",
     "start": "node serve.js",
     "test": "node --test test/*.test.js",
-    "build": "esbuild src/main.jsx --bundle --minify --outfile=dist/bundle.js --jsx=automatic --loader:.jsx=jsx --define:process.env.NODE_ENV='\"production\"' && tailwindcss -i ./src/index.css -o ./dist/bundle.css --config ./tailwind.config.cjs --minify",
+    "build": "esbuild src/main.jsx --bundle --minify --outfile=dist/bundle.js --jsx=automatic --loader:.jsx=jsx --define:process.env.NODE_ENV='\"production\"' && tailwindcss -i ./src/index.css -o ./dist/bundle.css --config ./tailwind.config.cjs --minify && node -e \"require('fs').copyFileSync('index.html','dist/index.html')\"",
     "watch": "esbuild src/main.jsx --bundle --outfile=dist/bundle.js --jsx=automatic --loader:.jsx=jsx --define:process.env.NODE_ENV='\"development\"' --watch"
   },
   "dependencies": {
